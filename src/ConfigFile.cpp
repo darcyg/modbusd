@@ -42,8 +42,9 @@ bool CConfigFile::parse(IOnConfigOptionCallback * const cb) {
 
 	    if(line.empty() || line.at(0) == '#')
 	    	continue;
-
+#ifdef __DEBUG_CONF_PARSER__
 	    Log("LINE: %s", line.c_str());
+#endif
 
 	    if (!(iss >> a >> b)) {
 			Log("Error parsing config file %s", m_fileName.c_str());

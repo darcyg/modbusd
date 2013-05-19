@@ -11,3 +11,10 @@
 *.lai
 *.la
 *.a
+
+# eclipse folders
+Debug
+Release
+
+# backpp files
+*~

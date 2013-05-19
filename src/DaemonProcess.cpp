@@ -28,12 +28,15 @@
 //open
 #include <fcntl.h>
 
+//stdio, stderr
+#include <stdio.h>
+
 #define BD_MAX_CLOSE 8192
 
 CDaemonProcess::CDaemonProcess(std::string processName, int argc, char* argv[])
 	: m_daemonName(processName), m_lockName(processName), m_argc(argc), m_argv(argv), m_pConnection(NULL)
 {
-
+	m_configOptions["debuglevel"] = "0";
 }
 
 CDaemonProcess::~CDaemonProcess() {
@@ -70,11 +73,11 @@ EExecutionContext CDaemonProcess::becomeDaemon()
 	}
 
 	/* Become leader of new session */
-	if (setsid() == -1)
+	if (::setsid() == -1)
 		return CONTEXT_ERROR;
 
 	/* Ensure we are not session leader */
-	switch (fork()) {
+	switch (::fork()) {
 	case -1:
 		return CONTEXT_ERROR;
 	case 0:
@@ -82,42 +85,51 @@ EExecutionContext CDaemonProcess::becomeDaemon()
 
 		break;
 	default:
-		_exit(EXIT_SUCCESS); //exit from the second child
+		::_exit(EXIT_SUCCESS); //exit from the second child
 		break;
 	}
 
-	umask(0);
-	chdir("/");
+	::umask(0);
+	::chdir("/");
 
 	//we are in daemon code now
-	maxfd = sysconf(_SC_OPEN_MAX);
+	maxfd = ::sysconf(_SC_OPEN_MAX);
 	if (maxfd == -1)
 		/* Limit is indeterminate... */
 		maxfd = BD_MAX_CLOSE;
-	/* so take a guess */
-	for (fd = 0; fd < maxfd; fd++)
+	/* so take a guess. start from STDERR which is the biggest */
+	for (fd = STDERR_FILENO+1; fd < maxfd; fd++)
 	{
 		// keep log file opened
-		if(fd != ::GetLogFd())
-			close(fd);
+		if((fd != ::GetLogFd())/* && (fd != STDOUT_FILENO) && (fd != STDERR_FILENO)*/)
+			::close(fd);
 	}
 
 
-	close(STDIN_FILENO);
+	::close(STDIN_FILENO);
 	/* Reopen standard fd's to /dev/null */
-	fd = open("/dev/null", O_RDWR);
+	fd = ::open("/dev/null", O_RDWR);
 	if (fd != STDIN_FILENO) {
 		/* 'fd' should be 0 */
 		return CONTEXT_ERROR;
 	}
-	if (dup2(STDIN_FILENO, STDOUT_FILENO) != STDOUT_FILENO) {
+#ifdef __LOG_DONOT_REDIRECT_STDIO__
+	if (::dup2(STDIN_FILENO, STDOUT_FILENO) != STDOUT_FILENO) {
 		return CONTEXT_ERROR;
 	}
-	if (dup2(STDIN_FILENO, STDERR_FILENO) != STDERR_FILENO) {
+	if (::dup2(STDIN_FILENO, STDERR_FILENO) != STDERR_FILENO) {
 		return CONTEXT_ERROR;
 	}
-
-	Log( "PID: 0x%d", getpid());
+#else
+	if (::dup2(::GetLogFd(), STDOUT_FILENO) != STDOUT_FILENO) {
+		return CONTEXT_ERROR;
+	}
+	if (::dup2(::GetLogFd(), STDERR_FILENO) != STDERR_FILENO) {
+		return CONTEXT_ERROR;
+	}
+#endif
+	//*((int*)0) = 1;
+	Log( "DAEMON PID: %d", ::getpid());
 
 	return CONTEXT_DAEMON;
 }
@@ -137,9 +149,10 @@ CDaemonProcess::EError CDaemonProcess::start() {
 	}
 
 	if(m_pConnection->create()) {
-		//DAEMON WAS NOT RUNNIN
-		//we have created connection, now can run as daemon if required
+		// DAEMON WAS NOT RUNNIN
+		// we have created server connection, now can run as daemon if required
 		// parse config file first
+
 		std::string configName = std::string("./") + m_daemonName + std::string(".conf");
 		CConfigFile* pConfig = new CConfigFile(configName);
 
@@ -151,17 +164,17 @@ CDaemonProcess::EError CDaemonProcess::start() {
 
 		delete pConfig;
 
+		// now setup the required env.
 		if(setupEnvironment()) {
+			// and fork
 			switch(becomeDaemon()) {
-
-			case CONTEXT_DAEMON:
-				daemonLoop();
-				break;
-			case CONTEXT_PARENT:
-				break;
-			case CONTEXT_ERROR:
-				break;
-
+				case CONTEXT_DAEMON:
+					daemonLoop();
+					break;
+				case CONTEXT_PARENT:
+					break;
+				case CONTEXT_ERROR:
+					break;
 			}
 		} else {
 			Log("Cannot start daemon [%s]", m_daemonName.c_str());
@@ -184,8 +197,8 @@ bool CDaemonProcess::OnConfigOption(std::string& name, std::string& value)
 {
 	Log("[Config]: [%s]-[%s]", name.c_str(), value.c_str());
 
-	//Common options
-	if(name == "debuglevel") {
+	if(m_configOptions.find(name) != m_configOptions.end()) {
+		m_configOptions[name] = value;
 		return true;
 	}
 

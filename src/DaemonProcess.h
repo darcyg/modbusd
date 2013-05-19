@@ -9,6 +9,7 @@
 #define DAEMONPROCESS_H_
 
 #include <string>
+#include <map>
 #include "IPCConnection.h"
 #include "ConfigFile.h"
 
@@ -22,6 +23,8 @@ typedef enum {
 
 class CDaemonProcess: public IOnConfigOptionCallback {
 protected:
+	std::map<std::string, std::string> m_configOptions;
+
 	std::string m_daemonName;
 	/*
 	 * if named lock exists in the system, and cannot be obtained then daemon instance cannot

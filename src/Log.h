@@ -14,5 +14,6 @@ void LogInit(std::string filename);
 int GetLogFd();
 void Log(std::string format, ...);
 void SetLogContext(EExecutionContext context);
+void LogRedirect(FILE **pfp);
 
 #endif /* LOG_H_ */

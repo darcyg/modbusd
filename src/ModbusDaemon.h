@@ -11,11 +11,18 @@
 #include "DaemonProcess.h"
 #include <map>
 #include "ModbusLoop.h"
+#include "DataPump.h"
+
+#define DEFAULT_TCP_PORT 502
+
 class CModbusDaemon: public CDaemonProcess {
 
 protected:
-	std::map<std::string, std::string> m_configOptions;
 	CModbusLoop* m_pLoop;
+	CDataPump* m_pPump;
+	std::string m_sDbName;
+	int m_tcpPort;
+	std::string m_tcpAddr;
 protected:
 	virtual int daemonLoop();
 	virtual int parentLoop();
@@ -24,9 +31,6 @@ public:
 	CModbusDaemon(std::string processName, int argc, char* argv[]);
 	virtual ~CModbusDaemon();
 
-public:
-	// from
-	virtual bool OnConfigOption(std::string& name, std::string& value);
 };
 
 #endif /* MODBUSDAEMON_H_ */

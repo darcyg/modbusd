@@ -13,11 +13,19 @@
 #include "Log.h"
 #include <fcntl.h>
 #include <stdio.h>
+#include <string.h>
+
+static char const *priov[] = {
+"EMERG:",   "ALERT:",  "CRIT:", "ERR:", "WARNING:", "NOTICE:", "INFO:", "DEBUG:"
+};
+
 
 static std::string gContext("C");
 static int gLogfd = -1;
 
 static char buffer[2048];
+
+EExecutionContext gCnx = CONTEXT_PARENT;
 
 void Log(std::string format, ...)
 {
@@ -30,7 +38,9 @@ void Log(std::string format, ...)
 	if(s[s.length() - 1] != '\n') {
 		s += std::string("\n");
 	}
-	vprintf(s.c_str(), vl2);
+	if(gCnx == CONTEXT_PARENT) {
+		vprintf(s.c_str(), vl2);
+	}
 	if(gLogfd != -1) {
 		int size = vsnprintf(buffer, 2048, s.c_str(), vl1);
 		write(gLogfd, buffer, size);
@@ -41,12 +51,16 @@ void Log(std::string format, ...)
 }
 
 void SetLogContext(EExecutionContext context) {
+	gCnx = context;
 	switch(context) {
 	case CONTEXT_DAEMON:
 		gContext = std::string("D");
 		break;
 	case CONTEXT_PARENT:
 		gContext = std::string("C");
+		break;
+	case CONTEXT_ERROR:
+		gContext = std::string("E");
 		break;
 	}
 }
@@ -59,6 +73,33 @@ int GetLogFd() {
 	return gLogfd;
 }
 
+
+static __ssize_t writer(void *cookie, char const *data, size_t leng)
+{
+    (void)cookie;
+//    int     p = LOG_DEBUG, len;
+//    do len = strlen(priov[p]);
+//    while (memcmp(data, priov[p], len) && --p >= 0);
+//
+//    if (p < 0) p = LOG_INFO;
+//    else data += len, leng -= len;
+//    while (*data == ' ') ++data, --leng;
+//
+//    syslog(p, "%.*s", leng, data);
+	if(gLogfd != -1) {
+		write(gLogfd, data, leng);
+	}
+    return  leng;
+}
+
+static cookie_io_functions_t log_fns = {
+    NULL, writer, NULL, NULL
+};
+
+void LogRedirect(FILE **pfp)
+{
+    setvbuf(*pfp = fopencookie(NULL, "w", log_fns), NULL, _IOLBF, 0);
+}
 
 
 
