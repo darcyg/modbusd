@@ -16,5 +16,8 @@
 Debug
 Release
 
+# build artifacts
+modbusd
+
 # backpp files
 *~
