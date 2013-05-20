@@ -20,7 +20,8 @@ class CModbusDaemon: public CDaemonProcess {
 protected:
 	CModbusLoop* m_pLoop;
 	CDataPump* m_pPump;
-	std::string m_sDbName;
+	std::string m_sParamDbName;
+	std::string m_sEventDbName;
 	int m_tcpPort;
 	std::string m_tcpAddr;
 protected:

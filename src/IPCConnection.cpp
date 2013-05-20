@@ -41,16 +41,16 @@ bool CIPCConnection::create() {
 
 	strncpy(&addr.sun_path[1], m_socketName.c_str(), sizeof(addr.sun_path) - 2);
 
-	Log( "CIPCConnection: Opening server socket.. [%s] ", m_socketName.c_str());
+	Log( "CIPCConnection: Opening server socket.. [%s]", m_socketName.c_str());
 
-	if (bind(m_socket, (struct sockaddr *) &addr, _STRUCT_OFFSET (struct sockaddr_un, sun_path) + m_socketName.length() + 1) == -1) {
+	if (::bind(m_socket, (struct sockaddr *) &addr, _STRUCT_OFFSET (struct sockaddr_un, sun_path) + m_socketName.length() + 1) == -1) {
 		Log( "CIPCConnection: bind() error");
 		::close(m_socket);
 		m_socket = -1;
 		return false;
 	}
 
-	if (listen(m_socket, 5) == -1) {
+	if (::listen(m_socket, 5) == -1) {
 		Log( "CIPCConnection listen() error");
 		::close(m_socket);
 		m_socket = -1;

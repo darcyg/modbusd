@@ -94,14 +94,15 @@ EExecutionContext CDaemonProcess::becomeDaemon()
 
 	//we are in daemon code now
 	maxfd = ::sysconf(_SC_OPEN_MAX);
-	if (maxfd == -1)
+	if (maxfd == -1) {
 		/* Limit is indeterminate... */
 		maxfd = BD_MAX_CLOSE;
+	}
 	/* so take a guess. start from STDERR which is the biggest */
 	for (fd = STDERR_FILENO+1; fd < maxfd; fd++)
 	{
-		// keep log file opened
-		if((fd != ::GetLogFd())/* && (fd != STDOUT_FILENO) && (fd != STDERR_FILENO)*/)
+		// keep log file and out lock opened
+		if((fd != ::GetLogFd()) && (fd != m_pConnection->getSocketId()) /*&& (fd != STDERR_FILENO)*/)
 			::close(fd);
 	}
 
@@ -143,6 +144,8 @@ bool CDaemonProcess::setupEnvironment()
 
 CDaemonProcess::EError CDaemonProcess::start() {
 
+	Log("%s version %s", m_daemonName.c_str(),_DAEMON_VERSION_);
+
 	m_pConnection = new CIPCConnection(m_lockName);
 	if(m_pConnection == NULL) {
 		return ERROR_OOM;
@@ -163,6 +166,7 @@ CDaemonProcess::EError CDaemonProcess::start() {
 		}
 
 		delete pConfig;
+		pConfig = NULL;
 
 		// now setup the required env.
 		if(setupEnvironment()) {
@@ -181,6 +185,7 @@ CDaemonProcess::EError CDaemonProcess::start() {
 			return ERROR_FATAL;
 		}
 	} else {
+		Log("Daemon is already running");
 		// couldn't create , try connect
 		if(m_pConnection->connect()) {
 			//DAEMON IS RUNNING

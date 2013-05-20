@@ -25,17 +25,25 @@ static data_parameter_t parameters[] = {
 
 #define NUMBER_OF_PARAMETERS (sizeof(parameters) / sizeof(data_parameter_t))
 
+
+static setting_t settings[] = {
+
+};
+
+#define NUMBER_OF_SETTINGS (sizeof(settings) / sizeof(setting_t))
+
 CModbusDaemon::CModbusDaemon(std::string processName, int argc, char* argv[])
 	: CDaemonProcess(processName, argc, argv), m_tcpPort(DEFAULT_TCP_PORT)
 
 {
 	m_configOptions["ParametersDB"] = "";
+	m_configOptions["EventsDB"] = "";
 	m_configOptions["MODBUS_LocalAddress"] = "127.0.0.1:502";
 	m_configOptions["MODBUS_Rtu_Baudrate"] = "9600";
 	m_configOptions["MODBUS_Rtu_Port"] = "";
 
 	m_pLoop = new CModbusLoop();
-	m_pPump = new CDataPump(parameters, NUMBER_OF_PARAMETERS);
+	m_pPump = new CDataPump(parameters, NUMBER_OF_PARAMETERS, settings, NUMBER_OF_SETTINGS);
 }
 
 CModbusDaemon::~CModbusDaemon() {
@@ -54,7 +62,8 @@ bool CModbusDaemon::setupEnvironment()
 {
 	//FIXME: check that all of mandatory options exist
 
-	m_sDbName = m_configOptions.find(std::string("ParametersDB"))->second;
+	m_sParamDbName = m_configOptions.find(std::string("ParametersDB"))->second;
+	m_sEventDbName = m_configOptions.find(std::string("EventsDB"))->second;
 
 	std::string s = m_configOptions.find(std::string("MODBUS_LocalAddress"))->second;
 
@@ -68,7 +77,8 @@ bool CModbusDaemon::setupEnvironment()
 	}
 
 	Log("---- ENV ----");
-	Log("DB name: %s", m_sDbName.c_str());
+	Log("ParamsDB name: %s", m_sParamDbName.c_str());
+	Log("EventsDB name: %s", m_sEventDbName.c_str());
 	Log("IP address: %s", m_tcpAddr.c_str());
 	Log("TCP port: %d", m_tcpPort);
 	Log("-------------");
@@ -79,7 +89,7 @@ bool CModbusDaemon::setupEnvironment()
 int CModbusDaemon::daemonLoop()
 {
 	Log("daemonLoop() -->>");
-	if(m_pPump->Create(m_sDbName)) {
+	if(m_pPump->Create(m_sParamDbName, m_sEventDbName)) {
 		m_pPump->RegisterDataUpdateListener(m_pLoop);
 		if(m_pLoop->Create(m_tcpAddr, m_tcpPort)) {
 			m_pLoop->Join();

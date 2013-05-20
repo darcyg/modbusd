@@ -18,6 +18,7 @@ public:
 	virtual ~CIPCConnection();
 	bool create();
 	bool connect();
+	int getSocketId() const { return m_socket; }
 	int read(unsigned char* buffer, int size);
 	int write(unsigned char* buffer, int size);
 };

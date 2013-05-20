@@ -13,6 +13,11 @@
 #include "IPCConnection.h"
 #include "ConfigFile.h"
 
+#ifndef _DAEMON_VERSION_
+#define _DAEMON_VERSION_ "v1.0-PC-BUILD"
+#endif
+
+
 typedef enum {
 	CONTEXT_DAEMON,
 	CONTEXT_PARENT,

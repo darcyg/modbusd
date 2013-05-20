@@ -34,7 +34,7 @@ public:
 	virtual bool Create(std::string addr, int port);
 
 public:
-	virtual void OnDataUpdated(const data_parameter_t* params, int size);
+	virtual void OnDataUpdated(const data_parameter_t* params, int nbParams, const setting_t* settings, int nbSettings);
 };
 
 #endif /* CMODBUSLOOP_H_ */

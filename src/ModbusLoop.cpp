@@ -57,9 +57,6 @@ bool CModbusLoop::Create(std::string addr, int port)
 	}
 
     modbus_set_debug(m_ctx, TRUE);
-//    modbus_set_error_recovery(m_ctx,
-//                              (modbus_error_recovery_mode)(MODBUS_ERROR_RECOVERY_LINK |
-//                              MODBUS_ERROR_RECOVERY_PROTOCOL));
 
     m_headerLength = modbus_get_header_length(m_ctx);
     modbus_set_debug(m_ctx, TRUE);
@@ -134,16 +131,20 @@ void* CModbusLoop::Run()
 	return NULL;
 }
 
-void CModbusLoop::OnDataUpdated(const data_parameter_t* params, int size)
+void CModbusLoop::OnDataUpdated(const data_parameter_t* params, int nbParams, const setting_t* settings, int nbSettings)
 {
-	Log("OnDataUpdated(): size=%d", size);
+	Log("OnDataUpdated(): nbParams=%d nbSettings=%d", nbParams, nbSettings);
 
 	modbus_mapping_t * pm = m_mapping == m_mapping1 ? m_mapping2 : m_mapping1;
 
-	for(int i = 0; i < size; i++) {
-		//modbus_set_float(params[i].m_value, &pm->tab_registers[params[i].m_startReg]);
+	for(int i = 0; i < nbParams; i++) {
 		pm->tab_registers[params[i].m_startReg] = params[i].m_value;
 	}
+
+	for(int i = 0; i < nbSettings; i++) {
+		pm->tab_input_registers[settings[i].m_startReg] = settings[i].m_value;
+	}
+
 
 	pthread_mutex_lock(&m_mutex);
 	m_mapping = pm;
