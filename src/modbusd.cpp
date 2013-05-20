@@ -11,7 +11,7 @@
 #include "ModbusDaemon.h"
 
 int main(int argc, char* argv[]) {
-	int error;
+	int error = -1;
 	LogInit("/tmp/modbusd.log");
 	CModbusDaemon* pDaemon = new CModbusDaemon(std::string("modbusd"), argc, argv);
 	if(pDaemon) {

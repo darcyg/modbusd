@@ -60,20 +60,35 @@ CModbusDaemon::~CModbusDaemon() {
 
 bool CModbusDaemon::setupEnvironment()
 {
-	//FIXME: check that all of mandatory options exist
+	config_options_iterator itr;
 
 	m_sParamDbName = m_configOptions.find(std::string("ParametersDB"))->second;
+
+	if(m_sParamDbName.empty()) {
+		Log("[config]: ParametersDB option is missing");
+		return false;
+	}
+
 	m_sEventDbName = m_configOptions.find(std::string("EventsDB"))->second;
 
+	if(m_sEventDbName.empty()) {
+		Log("[config]: EventsDB option is missing");
+		return false;
+	}
+
+	// default value always exist
 	std::string s = m_configOptions.find(std::string("MODBUS_LocalAddress"))->second;
 
 	std::vector<std::string> v = split(s,':');
 
 	if(v.size() > 0) {
-	m_tcpAddr = v[0];
+		m_tcpAddr = v[0];
 		if(v.size() > 1) {
 			m_tcpPort = atoi(v[1].c_str());
 		}
+	} else {
+		Log("[config]: Wrong IP address format for MODBUS_LocalAddress");
+		return false;
 	}
 
 	Log("---- ENV ----");

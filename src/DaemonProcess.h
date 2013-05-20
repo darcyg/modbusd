@@ -27,6 +27,7 @@ typedef enum {
 
 
 class CDaemonProcess: public IOnConfigOptionCallback {
+//MEMBERS
 protected:
 	std::map<std::string, std::string> m_configOptions;
 
@@ -43,6 +44,7 @@ protected:
 	char** m_argv;
 	CIPCConnection* m_pConnection;
 
+//TYPES
 public:
 	typedef enum {
 		ERROR_NO_ERROR = 0,
@@ -51,7 +53,10 @@ public:
 		ERROR_UNKNOWN = -3,
 		ERROR_FATAL = -4,
 	} EError;
+protected:
+	typedef std::map<std::string, std::string>::iterator config_options_iterator;
 
+//METHODS
 private:
 	EExecutionContext becomeDaemon();
 
@@ -63,14 +68,14 @@ protected:
 	const std::string& getLockName() const;
 	virtual EError createLockName();
 
-// Interfaces
 public:
 	CDaemonProcess(std::string processName, int argc, char* argv[]);
 	virtual ~CDaemonProcess();
 	EError start();
 
+// DERIVED INTERFACES
 public:
-	// from
+	// from IOnConfigOptionCallback
 	virtual bool OnConfigOption(std::string& name, std::string& value);
 };
 
