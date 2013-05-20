@@ -70,22 +70,36 @@ void* CDataPump::Run()
 {
 	struct timespec timeout;
 
+	bool valuesChanged = false;
+
 	while(true) {
 		//TODO: check for bad values in
-		while (sqlite3_step(m_pStm) ==  SQLITE_ROW) {
+		int rc;
+		valuesChanged = false;
+		while ((rc =sqlite3_step(m_pStm)) ==  SQLITE_ROW) {
 			int paramId = sqlite3_column_int(m_pStm, 0);
 			double value = sqlite3_column_double(m_pStm, 1);
 			Log( "Found parameter: P:%d V:%g", paramId, value);
 
 			for(int i = 0;i < m_nbParams; i++)
 				if(m_params[i].m_paramId == paramId) {
-					m_params[i].m_value = value;
+					if(m_params[i].m_value != value) {
+						m_params[i].m_value = value;
+						valuesChanged = true;
+					}
 					break;
 				}
 		}
-		NotifyDataUpdated();
+		if(rc != SQLITE_DONE) {
+			Log("SQL: %d %s", rc, sqlite3_errmsg(m_pDb));
+		}
+		sqlite3_reset(m_pStm);
+		if(valuesChanged) {
+			Log("Some values changed");
+			NotifyDataUpdated();
+		}
 
-		timeout.tv_sec = 15;
+		timeout.tv_sec = 5;
 		timeout.tv_nsec = 0;
 		nanosleep(&timeout, NULL);
 	}

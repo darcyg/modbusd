@@ -77,7 +77,7 @@ bool CModbusLoop::Create(std::string addr, int port)
 
     m_mapping = m_mapping1;
 
-#if 1
+#if 0
     for(int i = 0; i < HOLDING_REGS_NB; i++) {
     	m_mapping->tab_registers[HOLDING_REGS_ADDR+i] = 0xAAAA + i;
     }
@@ -141,7 +141,8 @@ void CModbusLoop::OnDataUpdated(const data_parameter_t* params, int size)
 	modbus_mapping_t * pm = m_mapping == m_mapping1 ? m_mapping2 : m_mapping1;
 
 	for(int i = 0; i < size; i++) {
-		modbus_set_float(params[i].m_value, &pm->tab_registers[params[i].m_startReg]);
+		//modbus_set_float(params[i].m_value, &pm->tab_registers[params[i].m_startReg]);
+		pm->tab_registers[params[i].m_startReg] = params[i].m_value;
 	}
 
 	pthread_mutex_lock(&m_mutex);
