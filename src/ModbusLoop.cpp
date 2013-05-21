@@ -69,8 +69,8 @@ bool CModbusLoop::Create(std::string addr, int port)
     	return false;
     }
 
-    m_mapping1 = modbus_mapping_new(0, 0, HOLDING_REGS_ADDR + HOLDING_REGS_NB, 0);
-    m_mapping2 = modbus_mapping_new(0, 0, HOLDING_REGS_ADDR + HOLDING_REGS_NB, 0);
+    m_mapping1 = modbus_mapping_new(0, 0, HOLDING_REGS_ADDR + HOLDING_REGS_NB, INPUT_REGS_ADDR + INPUT_REGS_NB);
+    m_mapping2 = modbus_mapping_new(0, 0, HOLDING_REGS_ADDR + HOLDING_REGS_NB, INPUT_REGS_ADDR + INPUT_REGS_NB);
 
     m_mapping = m_mapping1;
 

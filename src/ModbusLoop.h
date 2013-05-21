@@ -15,6 +15,10 @@
 #define HOLDING_REGS_ADDR 0x100
 #define HOLDING_REGS_NB 0x60
 
+#define INPUT_REGS_ADDR 0x100
+#define INPUT_REGS_NB 0x200
+
+
 class CModbusLoop: public CThread, public IOnDataUpdateListener {
 protected:
     modbus_t* m_ctx;
