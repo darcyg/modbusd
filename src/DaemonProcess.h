@@ -10,6 +10,7 @@
 
 #include <string>
 #include <map>
+#include "IPCServer.h"
 #include "IPCConnection.h"
 #include "ConfigFile.h"
 
@@ -42,7 +43,12 @@ protected:
 
 	int m_argc;
 	char** m_argv;
-	CIPCConnection* m_pConnection;
+
+	// for client
+	CIPCConnection* m_pIpcConnection;
+
+	// for server
+	CIPCServer* m_pIpcServer;
 
 //TYPES
 public:

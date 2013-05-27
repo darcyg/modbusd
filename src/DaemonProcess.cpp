@@ -34,15 +34,15 @@
 #define BD_MAX_CLOSE 8192
 
 CDaemonProcess::CDaemonProcess(std::string processName, int argc, char* argv[])
-	: m_daemonName(processName), m_lockName(processName), m_argc(argc), m_argv(argv), m_pConnection(NULL)
+	: m_daemonName(processName), m_lockName(processName), m_argc(argc), m_argv(argv), m_pIpcConnection(NULL)
 {
 	m_configOptions["debuglevel"] = "0";
 }
 
 CDaemonProcess::~CDaemonProcess() {
-	if(m_pConnection) {
-		delete m_pConnection;
-		m_pConnection = NULL;
+	if(m_pIpcConnection) {
+		delete m_pIpcConnection;
+		m_pIpcConnection = NULL;
 	}
 }
 
@@ -102,7 +102,7 @@ EExecutionContext CDaemonProcess::becomeDaemon()
 	for (fd = STDERR_FILENO+1; fd < maxfd; fd++)
 	{
 		// keep log file and out lock opened
-		if((fd != ::GetLogFd()) && (fd != m_pConnection->getSocketId()) /*&& (fd != STDERR_FILENO)*/)
+		if((fd != ::GetLogFd()) && (fd != m_pIpcConnection->getSocketId()) /*&& (fd != STDERR_FILENO)*/)
 			::close(fd);
 	}
 
@@ -146,12 +146,12 @@ CDaemonProcess::EError CDaemonProcess::start() {
 
 	Log("%s version %s", m_daemonName.c_str(),_DAEMON_VERSION_);
 
-	m_pConnection = new CIPCConnection(m_lockName);
-	if(m_pConnection == NULL) {
+	m_pIpcServer = new CIPCServer(m_lockName);
+	if(m_pIpcServer == NULL) {
 		return ERROR_OOM;
 	}
 
-	if(m_pConnection->create()) {
+	if(m_pIpcServer->Create()) {
 		// DAEMON WAS NOT RUNNIN
 		// we have created server connection, now can run as daemon if required
 		// parse config file first
@@ -186,8 +186,14 @@ CDaemonProcess::EError CDaemonProcess::start() {
 		}
 	} else {
 		Log("Daemon is already running");
+
+		m_pIpcConnection = new CIPCConnection(m_lockName);
+		if(m_pIpcConnection == NULL) {
+			return ERROR_OOM;
+		}
+
 		// couldn't create , try connect
-		if(m_pConnection->connect()) {
+		if(m_pIpcConnection->connect()) {
 			//DAEMON IS RUNNING
 			parentLoop();
 		} else {

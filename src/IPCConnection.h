@@ -16,7 +16,6 @@ class CIPCConnection {
 public:
 	CIPCConnection(std::string socket);
 	virtual ~CIPCConnection();
-	bool create();
 	bool connect();
 	int getSocketId() const { return m_socket; }
 	int read(unsigned char* buffer, int size);

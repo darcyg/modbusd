@@ -38,10 +38,10 @@ std::string TimeToString(time_t time);
 unsigned short Crc16(unsigned short crcInit, unsigned char byte);
 unsigned short Crc16(unsigned short crcInit, unsigned char buffer[], int size);
 
-#ifdef __DEBUG__
+//#ifdef __DEBUG__
 void _do_backtrace();
-#else
-static inline void _do_backtrace() {}
-#endif
+//#else
+//extern void _do_backtrace() {}
+//#endif
 
 #endif /* UTILS_H_ */

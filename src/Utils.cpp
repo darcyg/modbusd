@@ -81,7 +81,7 @@ unsigned short  Crc16(unsigned short crcInit, unsigned char buffer[], int size) 
 	return crcInit;
 }
 
-#ifdef __DEBUG__
+//#ifdef __DEBUG__
 void _do_backtrace()
 {
     int j, nptrs;
@@ -105,4 +105,4 @@ void _do_backtrace()
 
     free(strings);
 }
-#endif
+//#endif

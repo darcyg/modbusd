@@ -9,6 +9,7 @@
 #include <iostream>
 #include "Log.h"
 #include "ModbusDaemon.h"
+#include "Utils.h"
 
 int main(int argc, char* argv[]) {
 	int error = -1;
