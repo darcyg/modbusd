@@ -12,6 +12,8 @@
 #include "IPCConnection.h"
 #include <list>
 
+#include <sys/socket.h>
+
 class IIPCServerListener {
 public:
 	virtual void IPCServerOnNewConnection(CIPCConnection* pConnection) = 0;
@@ -26,6 +28,11 @@ private:
 	int m_socket;
 
 	std::list<IIPCServerListener*> m_pListeners;
+
+	bool m_canAcceptConnections;
+	fd_set m_master_set;
+	fd_set m_working_set;
+	int m_maxSd;
 
 protected:
 	// list of active connections
