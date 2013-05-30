@@ -15,11 +15,17 @@
 #include "Log.h"
 
 CIPCConnection::CIPCConnection(std::string socket)
-	: m_socketName(socket), m_socket(-1)
+	: m_socketName(socket), m_socket(-1), m_pListener(NULL), m_isClosed(true)
 {
 	// TODO Auto-generated constructor stub
 
 }
+
+CIPCConnection::CIPCConnection(int socket)
+	: m_socket(socket), m_pListener(NULL), m_isClosed(false)
+{
+}
+
 
 CIPCConnection::~CIPCConnection() {
 	if(m_socket != -1) {
@@ -59,16 +65,46 @@ bool CIPCConnection::connect() {
 		::close(m_socket);
 		return false;
 	}
+	m_isClosed = false;
 	return true;
+}
+
+void CIPCConnection::NotifyEvent(EConnectionEvent event)
+{
+	if(m_pListener) {
+		switch(event) {
+		case CONN_EVENT_CONN_CLOSED:
+			m_pListener->OnIPCConnectionClosed(this);
+			::close(m_socket);
+			break;
+		case CONN_EVENT_DATA_READY:
+			m_pListener->OnIPCConnectionDataReady(this);
+			unsigned char a[256];
+			int k = read(a, 256);
+			a[k] = '\0';
+			Log("[READ]: k=%d data=%s",k,a);
+			break;
+		}
+	}
 }
 
 
 int CIPCConnection::read(unsigned char* buffer, int size) {
-	return 0;
+	if(m_isClosed)
+		return -1;
+	return ::recv(m_socket, buffer, size, 0);
 }
 
-int CIPCConnection::write(unsigned char* buffer, int size) {
-	return 0;
+int CIPCConnection::write(const unsigned char* buffer, int size) {
+	if(m_isClosed)
+		return -1;
+	return ::send(m_socket,buffer,size, 0);
 }
+
+int CIPCConnection::close() {
+	m_isClosed = true;
+	return ::close(m_socket);
+}
+
 
 

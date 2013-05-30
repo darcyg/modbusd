@@ -33,32 +33,29 @@
 
 #define BD_MAX_CLOSE 8192
 
-CDaemonProcess::CDaemonProcess(std::string processName, int argc, char* argv[])
-	: m_daemonName(processName), m_lockName(processName), m_argc(argc), m_argv(argv), m_pIpcConnection(NULL)
-{
+CDaemonProcess::CDaemonProcess(std::string processName, int argc, char* argv[]) :
+		m_daemonName(processName), m_lockName(processName), m_argc(argc), m_argv(
+				argv), m_pIpcConnection(NULL), m_pIpcServer(NULL) {
 	m_configOptions["debuglevel"] = "0";
 }
 
 CDaemonProcess::~CDaemonProcess() {
-	if(m_pIpcConnection) {
+	if (m_pIpcConnection) {
 		delete m_pIpcConnection;
 		m_pIpcConnection = NULL;
 	}
 }
 
-const std::string& CDaemonProcess::getLockName() const
-{
+const std::string& CDaemonProcess::getLockName() const {
 	return m_lockName;
 }
-
 
 CDaemonProcess::EError CDaemonProcess::createLockName() {
 	m_lockName = m_daemonName;
 	return ERROR_NO_ERROR;
 }
 
-EExecutionContext CDaemonProcess::becomeDaemon()
-{
+EExecutionContext CDaemonProcess::becomeDaemon() {
 	int maxfd, fd;
 
 	switch (::fork()) {
@@ -99,13 +96,12 @@ EExecutionContext CDaemonProcess::becomeDaemon()
 		maxfd = BD_MAX_CLOSE;
 	}
 	/* so take a guess. start from STDERR which is the biggest */
-	for (fd = STDERR_FILENO+1; fd < maxfd; fd++)
-	{
+	for (fd = STDERR_FILENO + 1; fd < maxfd; fd++) {
 		// keep log file and out lock opened
-		if((fd != ::GetLogFd()) && (fd != m_pIpcConnection->getSocketId()) /*&& (fd != STDERR_FILENO)*/)
+		if ((fd != ::GetLogFd())
+				&& (fd != m_pIpcServer->getSocketId()) /*&& (fd != STDERR_FILENO)*/)
 			::close(fd);
 	}
-
 
 	::close(STDIN_FILENO);
 	/* Reopen standard fd's to /dev/null */
@@ -130,36 +126,34 @@ EExecutionContext CDaemonProcess::becomeDaemon()
 	}
 #endif
 	//*((int*)0) = 1;
-	Log( "DAEMON PID: %d", ::getpid());
+	Log("DAEMON PID: %d", ::getpid());
 
 	return CONTEXT_DAEMON;
 }
 
-
-bool CDaemonProcess::setupEnvironment()
-{
+bool CDaemonProcess::setupEnvironment() {
 	return true;
 }
 
-
 CDaemonProcess::EError CDaemonProcess::start() {
 
-	Log("%s version %s", m_daemonName.c_str(),_DAEMON_VERSION_);
+	Log("%s version %s", m_daemonName.c_str(), _DAEMON_VERSION_);
 
-	m_pIpcServer = new CIPCServer(m_lockName);
-	if(m_pIpcServer == NULL) {
+	m_pIpcServer = new CIPCServer(m_lockName, this);
+	if (m_pIpcServer == NULL) {
 		return ERROR_OOM;
 	}
 
-	if(m_pIpcServer->Create()) {
-		// DAEMON WAS NOT RUNNIN
+	if (m_pIpcServer->Create()) {
+		// DAEMON WAS NOT RUNNING
 		// we have created server connection, now can run as daemon if required
 		// parse config file first
 
-		std::string configName = std::string("./") + m_daemonName + std::string(".conf");
+		std::string configName = std::string("./") + m_daemonName
+				+ std::string(".conf");
 		CConfigFile* pConfig = new CConfigFile(configName);
 
-		if(!pConfig->parse(this)) {
+		if (!pConfig->parse(this)) {
 			Log("Error parsing config file");
 			delete pConfig;
 			return ERROR_FATAL;
@@ -169,16 +163,18 @@ CDaemonProcess::EError CDaemonProcess::start() {
 		pConfig = NULL;
 
 		// now setup the required env.
-		if(setupEnvironment()) {
+		if (setupEnvironment()) {
 			// and fork
-			switch(becomeDaemon()) {
-				case CONTEXT_DAEMON:
-					daemonLoop();
-					break;
-				case CONTEXT_PARENT:
-					break;
-				case CONTEXT_ERROR:
-					break;
+			switch (becomeDaemon()) {
+			case CONTEXT_DAEMON:
+				m_pIpcServer->Start();
+				daemonLoop();
+				m_pIpcServer->Join();
+				break;
+			case CONTEXT_PARENT:
+				break;
+			case CONTEXT_ERROR:
+				break;
 			}
 		} else {
 			Log("Cannot start daemon [%s]", m_daemonName.c_str());
@@ -188,12 +184,13 @@ CDaemonProcess::EError CDaemonProcess::start() {
 		Log("Daemon is already running");
 
 		m_pIpcConnection = new CIPCConnection(m_lockName);
-		if(m_pIpcConnection == NULL) {
+		if (m_pIpcConnection == NULL) {
 			return ERROR_OOM;
 		}
 
-		// couldn't create , try connect
-		if(m_pIpcConnection->connect()) {
+		Log("Connecting to daemon on socket[%s]", m_lockName.c_str());
+		// try connect
+		if (m_pIpcConnection->connect()) {
 			//DAEMON IS RUNNING
 			parentLoop();
 		} else {
@@ -204,15 +201,44 @@ CDaemonProcess::EError CDaemonProcess::start() {
 	return ERROR_NO_ERROR;
 }
 
-bool CDaemonProcess::OnConfigOption(std::string& name, std::string& value)
-{
+bool CDaemonProcess::OnConfigOption(std::string& name, std::string& value) {
 	Log("[Config]: [%s]-[%s]", name.c_str(), value.c_str());
 
-	if(m_configOptions.find(name) != m_configOptions.end()) {
+	if (m_configOptions.find(name) != m_configOptions.end()) {
 		m_configOptions[name] = value;
 		return true;
 	}
 
 	return false;
 }
+
+void CDaemonProcess::IPCServerOnNewConnection(CIPCConnection* pConnection)
+{
+	pConnection->setListener(this);
+	m_connections.push_back(pConnection);
+}
+
+void CDaemonProcess::OnIPCConnectionClosed(CIPCConnection* pConnection) {
+	Log("Connection closed 0x%p", pConnection);
+	//TODO: cancel command, remove connection from lists, delete it
+	//TODO: for command connections close immediately, for streams DO NOT!
+}
+
+void CDaemonProcess::OnIPCConnectionDataReady(CIPCConnection* pConnection) {
+	Log("Data ready on 0x%p", pConnection);
+	//TODO: put connection to 'ready' queue
+	pthread_mutex_lock(&m_mutex);
+	//m_readyQueue.dele
+	//m_readyQueue.push_back(pConnection);
+	pthread_mutex_unlock(&m_mutex);
+}
+
+void CDaemonProcess::processConnections()
+{
+	connections_iterator itr;
+	for(itr = m_connections.begin(); itr != m_connections.end(); itr++) {
+
+	}
+}
+
 

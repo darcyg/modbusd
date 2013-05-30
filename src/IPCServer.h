@@ -13,12 +13,13 @@
 #include <list>
 
 #include <sys/socket.h>
+#include <sys/epoll.h>
 
 class IIPCServerListener {
 public:
 	virtual void IPCServerOnNewConnection(CIPCConnection* pConnection) = 0;
 protected:
-	virtual ~IIPCServerListener();
+	virtual ~IIPCServerListener() {};
 };
 
 class CIPCServer: public CThread {
@@ -27,21 +28,26 @@ private:
 	// socket for accepting connections
 	int m_socket;
 
-	std::list<IIPCServerListener*> m_pListeners;
+	IIPCServerListener* m_pListener;
 
 	bool m_canAcceptConnections;
-	fd_set m_master_set;
-	fd_set m_working_set;
-	int m_maxSd;
+
+	int m_efd;
+	struct epoll_event *m_events;
+private:
+	int make_socket_non_blocking(int sfd);
+	int epoll_add_socket(int fd, CIPCConnection* pConnection);
 
 protected:
 	// list of active connections
 	std::list<CIPCConnection*> m_connections;
 	virtual void* Run();
 public:
-	CIPCServer(std::string socket);
+	CIPCServer(std::string socket, IIPCServerListener* pListener);
 	virtual ~CIPCServer();
 	bool Create();
+	bool Start();
+	int getSocketId() { return m_socket; }
 };
 
 #endif /* IPCSERVER_H_ */

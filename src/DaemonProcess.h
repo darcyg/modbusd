@@ -10,6 +10,7 @@
 
 #include <string>
 #include <map>
+#include <queue>
 #include "IPCServer.h"
 #include "IPCConnection.h"
 #include "ConfigFile.h"
@@ -27,7 +28,7 @@ typedef enum {
 
 
 
-class CDaemonProcess: public IOnConfigOptionCallback {
+class CDaemonProcess: public IOnConfigOptionCallback, IIPCServerListener, IIPCConnectionEventListener {
 //MEMBERS
 protected:
 	std::map<std::string, std::string> m_configOptions;
@@ -61,11 +62,15 @@ public:
 	} EError;
 protected:
 	typedef std::map<std::string, std::string>::iterator config_options_iterator;
+	typedef std::list<CIPCConnection*>::iterator connections_iterator;
 
 //METHODS
 private:
 	EExecutionContext becomeDaemon();
-
+    void processConnections();
+    std::list<CIPCConnection*> m_connections;
+    std::list<CIPCConnection*> m_readyQueue;
+    pthread_mutex_t m_mutex;
 protected:
 	//virtual int run();
 	virtual int daemonLoop() = 0;
@@ -83,6 +88,13 @@ public:
 public:
 	// from IOnConfigOptionCallback
 	virtual bool OnConfigOption(std::string& name, std::string& value);
+
+	//from IIPCServerListener
+	virtual void IPCServerOnNewConnection(CIPCConnection* pConnection);
+
+	//from IIPCConnectionEventListener
+	virtual void OnIPCConnectionClosed(CIPCConnection* pConnection);
+	virtual void OnIPCConnectionDataReady(CIPCConnection* pConnection);
 };
 
 #endif /* DAEMONPROCESS_H_ */

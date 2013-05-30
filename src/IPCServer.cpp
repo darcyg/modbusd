@@ -16,12 +16,18 @@
 //errno
 #include <errno.h>
 
+//fcntl
+#include <fcntl.h>
+
 #include "Utils.h"
 
 #include "Log.h"
 
-CIPCServer::CIPCServer(std::string socket) :
-		m_socket(-1), m_canAcceptConnections(true), m_maxSd(-1) {
+#define MAXEVENTS 64
+
+CIPCServer::CIPCServer(std::string socket, IIPCServerListener* pListener) :
+		m_socketName(socket), m_socket(-1), m_pListener(pListener), m_canAcceptConnections(
+				true), m_efd(-1), m_events(NULL) {
 	// TODO Auto-generated constructor stub
 
 }
@@ -30,19 +36,44 @@ CIPCServer::~CIPCServer() {
 	// TODO Auto-generated destructor stub
 }
 
+int CIPCServer::make_socket_non_blocking(int sfd) {
+	int flags, s;
+
+	flags = fcntl(sfd, F_GETFL, 0);
+	if (flags == -1) {
+		Log("fcntl");
+		return -1;
+	}
+
+	flags |= O_NONBLOCK;
+	s = fcntl(sfd, F_SETFL, flags);
+	if (s == -1) {
+		Log("fcntl");
+		return -1;
+	}
+
+	return 0;
+}
+
+int CIPCServer::epoll_add_socket(int fd, CIPCConnection* pConnection) {
+	struct epoll_event event;
+	event.events = EPOLLIN | EPOLLET;
+	event.data.ptr = reinterpret_cast<void*>(pConnection);
+	return epoll_ctl(m_efd, EPOLL_CTL_ADD, fd, &event);
+}
+
 bool CIPCServer::Create() {
-	int on = 1;
 	struct sockaddr_un addr;
-	//_do_backtrace();
 
 	m_socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
 
 	if (m_socket == -1) {
+		Log("CIPCServer: socket() error");
 		return false;
 	}
 
-	if (::ioctl(m_socket, FIONBIO, (char *) &on) < 0) {
-		Log("CIPCServer: ioctl(FIONBIO) error");
+	if (make_socket_non_blocking(m_socket) == -1) {
+		Log("CIPCServer: make_socket_non_blocking error");
 		::close(m_socket);
 		m_socket = -1;
 		return false;
@@ -70,65 +101,129 @@ bool CIPCServer::Create() {
 		m_socket = -1;
 		return false;
 	}
-
-	FD_ZERO(&m_master_set);
-	m_maxSd = m_socket;
-	FD_SET(m_socket, &m_master_set);
-
 	return true;
+}
+bool CIPCServer::Start() {
+
+	//epol_create1 is not declared for ARM targte
+	m_efd = ::epoll_create(MAXEVENTS);
+
+	if (m_efd == -1) {
+		Log("CIPCServer epoll_create1() error");
+		::close(m_socket);
+		m_socket = -1;
+		return false;
+	}
+
+	if (epoll_add_socket(m_socket, NULL) == -1) {
+		Log("CIPCServer epoll_add_socket() error");
+		::close(m_socket);
+		::close(m_efd);
+		m_efd = -1;
+		m_socket = -1;
+		return false;
+	}
+
+	m_events = new epoll_event[MAXEVENTS];
+
+	if (m_events == NULL) {
+		Log("CIPCServer: OOM allocating m_events");
+		::close(m_socket);
+		::close(m_efd);
+		m_efd = -1;
+		m_socket = -1;
+		return false;
+	}
+
+	return CThread::Create();
 }
 
 void* CIPCServer::Run() {
-	int rc, nb_of_descriptors_ready;
-	// accept connection and call listener
+	int n;
+
+	Log("CIPCServer: Run() ->>");
+
 	while (m_canAcceptConnections) {
-		Log("CIPCServer: Waitign for client connection or data on socket...");
 
-		memcpy(&m_working_set, &m_master_set, sizeof(m_master_set));
+		Log("CIPCServer: waiting for socket activity...");
 
-		rc = ::select(m_maxSd + 1, &m_working_set, NULL, NULL, NULL);
+		n = epoll_wait(m_efd, m_events, MAXEVENTS, -1);
 
-		if (rc < 0) {
-			Log("CIPCServer: select() error");
-			return NULL;
+		Log("CIPCServer: epoll n=%d", n);
+
+		if (n == -1) {
+			Log("CIPCServer: epoll error %d", errno);
+			break;
 		}
 
-		nb_of_descriptors_ready = rc;
+		for (int i = 0; i < n; i++) {
+			Log("EVENT: ptr=%p event=0x%x", m_events[i].data.ptr,
+					m_events[i].events);
 
-		for (int i = 0; i <= m_maxSd && nb_of_descriptors_ready > 0; i++) {
-			if (FD_ISSET(i, &m_working_set)) {
+			CIPCConnection* pConnection =
+					reinterpret_cast<CIPCConnection*>(m_events[i].data.ptr);
 
-				nb_of_descriptors_ready--;
+			uint32_t events = m_events[i].events;
 
-				// accept all connections on listen socket
-				if (i == m_socket) {
-					int clientSock = -1;
-
+			// special case for 'accept' socket
+			if (pConnection == NULL) {
+				if (events & EPOLLIN) {
+					events &= ~EPOLLIN;
+					Log("CIPCServer: need accept connections ");
 					do {
-						clientSock = ::accept(m_socket, NULL, NULL);
+						int fd = ::accept(m_socket, NULL, NULL);
 
-						if (clientSock < 0) {
-							if (errno != EWOULDBLOCK) {
+						if (fd == -1) {
+							if (errno == EAGAIN || errno == EWOULDBLOCK) {
+								//all connections accepted
+								break;
+							} else {
+								//							m_canAcceptConnections = false;
 								Log("CIPCServer: accept() error");
-								m_canAcceptConnections = false;
+								break;
 							}
-							break;
+						} else {
+							Log("CIPCServer: incoming connection: fd=%d", fd);
+
+							if (make_socket_non_blocking(fd) == -1) {
+								::close(fd);
+								break;
+							} else {
+								CIPCConnection* pConnection =
+										new CIPCConnection(fd);
+
+								if (pConnection == NULL) {
+									Log(
+											"CIPCServer: OOM creating new CIPCConnection");
+									::close(fd);
+									break;
+								}
+								m_pListener->IPCServerOnNewConnection(
+										pConnection);
+								epoll_add_socket(fd, pConnection);
+							}
 						}
+					} while (true);
+				}
+				if (events != 0) {
+					Log("[EPOLL][ACCEPT] ERROR: unhandled event: 0x%x", events);
+				}
+			} else {
+				if (events & EPOLLIN) {
+					events &= ~EPOLLIN;
+					pConnection->NotifyEvent(CONN_EVENT_DATA_READY);
+				}
 
-						Log("CIPCServer: new incoming connection fd=%d", clientSock);
-						FD_SET(clientSock, &m_master_set);
-						if (clientSock > m_maxSd)
-							m_maxSd = clientSock;
+				if (events & EPOLLHUP) {
+					events &= ~EPOLLHUP;
+					pConnection->NotifyEvent(CONN_EVENT_CONN_CLOSED);
+				}
 
-					} while (clientSock != -1);
-
-				} else {
-					// find a connection and notify
+				if (events != 0) {
+					Log("[EPOLL][DATA] ERROR: unhandled event: 0x%x", events);
 				}
 			}
 		}
-
 	}
 	return NULL;
 }
-

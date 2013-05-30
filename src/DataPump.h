@@ -21,7 +21,7 @@ typedef struct {
 } data_parameter_t;
 
 typedef struct {
-	char* m_name;
+	const char* m_name;
 	double m_value;
 	unsigned int m_startReg;
 	unsigned int m_nbRegs;

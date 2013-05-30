@@ -153,6 +153,9 @@ int CModbusDaemon::daemonLoop()
 int CModbusDaemon::parentLoop()
 {
 	Log("parentLoop() -->>");
+	m_pIpcConnection->write((const unsigned char*)"Hello!",6);
+	m_pIpcConnection->write((const unsigned char*)"Hello1!",7);
+	m_pIpcConnection->close();
 	Log("parentLoop() --<<");
 	return 0;
 }
