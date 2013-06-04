@@ -32,6 +32,7 @@ private:
 	int m_socket;
 	IIPCConnectionEventListener* m_pListener;
 	bool m_isClosed;
+	bool m_isClosePending;
 private:
 	void NotifyEvent(EConnectionEvent event);
 	CIPCConnection(int socket);
@@ -42,7 +43,7 @@ public:
 	int getSocketId() const { return m_socket; }
 	int read(unsigned char* buffer, int size);
 	int write(const unsigned char* buffer, int size);
-	int close();
+	int close(bool force = false);
 	void setListener(IIPCConnectionEventListener* pListener) {
 		m_pListener = pListener;
 	}

@@ -12,12 +12,17 @@
 
 class CIPCCommand {
 private:
-	CIPCConnection* m_connection;
+	CIPCConnection& m_connection;
+	unsigned char* m_pPayload;
+	int m_payloadLength;
 protected:
 	bool SendReply(unsigned char* data, int length);
 public:
-	CIPCCommand();
+	CIPCCommand(CIPCConnection& connection);
 	virtual ~CIPCCommand();
+	bool send();
+	bool setPayload(unsigned char* data, int length, int status = 0);
+	bool waitForReply() { return true; }
 };
 
 #endif /* IPCCOMMAND_H_ */

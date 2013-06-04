@@ -44,6 +44,7 @@ protected:
 
 	int m_argc;
 	char** m_argv;
+	bool m_canAcceptConnections;
 
 	// for client
 	CIPCConnection* m_pIpcConnection;
@@ -80,7 +81,7 @@ protected:
 	virtual EError createLockName();
 
 public:
-	CDaemonProcess(std::string processName, int argc, char* argv[]);
+	CDaemonProcess(std::string processName, int argc, char* argv[], bool canAcceptConnections = true);
 	virtual ~CDaemonProcess();
 	EError start();
 

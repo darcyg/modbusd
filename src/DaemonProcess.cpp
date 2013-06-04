@@ -33,9 +33,9 @@
 
 #define BD_MAX_CLOSE 8192
 
-CDaemonProcess::CDaemonProcess(std::string processName, int argc, char* argv[]) :
+CDaemonProcess::CDaemonProcess(std::string processName, int argc, char* argv[], bool canAcceptConnections) :
 		m_daemonName(processName), m_lockName(processName), m_argc(argc), m_argv(
-				argv), m_pIpcConnection(NULL), m_pIpcServer(NULL) {
+				argv), m_canAcceptConnections(canAcceptConnections), m_pIpcConnection(NULL), m_pIpcServer(NULL) {
 	m_configOptions["debuglevel"] = "0";
 }
 
@@ -167,9 +167,15 @@ CDaemonProcess::EError CDaemonProcess::start() {
 			// and fork
 			switch (becomeDaemon()) {
 			case CONTEXT_DAEMON:
-				m_pIpcServer->Start();
+				if(m_canAcceptConnections) {
+					m_pIpcServer->Start();
+				}
 				daemonLoop();
-				m_pIpcServer->Join();
+				if(m_canAcceptConnections) {
+					// we exited from the loop. stop server
+					m_pIpcServer->Stop();
+					m_pIpcServer->Join();
+				}
 				break;
 			case CONTEXT_PARENT:
 				break;

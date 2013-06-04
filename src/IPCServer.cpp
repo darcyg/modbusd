@@ -138,6 +138,17 @@ bool CIPCServer::Start() {
 	return CThread::Create();
 }
 
+bool CIPCServer::Stop() {
+	Log("CIPCServer: stop() ->>");
+	m_canAcceptConnections = false;
+	::close(m_socket);
+	// force close all connections
+	for(std::list<CIPCConnection*>::iterator itr = m_connections.begin(); itr != m_connections.end(); itr++) {
+		(*itr)->close(true);
+	}
+	Log("CIPCServer: stop() -<<");
+}
+
 void* CIPCServer::Run() {
 	int n;
 
@@ -166,7 +177,7 @@ void* CIPCServer::Run() {
 			uint32_t events = m_events[i].events;
 
 			// special case for 'accept' socket
-			if (pConnection == NULL) {
+			if (pConnection == NULL && m_canAcceptConnections) {
 				if (events & EPOLLIN) {
 					events &= ~EPOLLIN;
 					Log("CIPCServer: need accept connections ");
@@ -178,7 +189,6 @@ void* CIPCServer::Run() {
 								//all connections accepted
 								break;
 							} else {
-								//							m_canAcceptConnections = false;
 								Log("CIPCServer: accept() error");
 								break;
 							}
@@ -198,6 +208,9 @@ void* CIPCServer::Run() {
 									::close(fd);
 									break;
 								}
+								// internal tracking
+								m_connections.push_back(pConnection);
+
 								m_pListener->IPCServerOnNewConnection(
 										pConnection);
 								epoll_add_socket(fd, pConnection);

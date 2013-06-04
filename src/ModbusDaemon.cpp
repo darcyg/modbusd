@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <vector>
 #include "Utils.h"
+#include "IPCCommand.h"
 
 static data_parameter_t parameters[] = {
 	{1050100090,0.0,0x100,1},
@@ -138,6 +139,9 @@ int CModbusDaemon::daemonLoop()
 	if(m_pPump->Create(m_sParamDbName, m_sEventDbName)) {
 		m_pPump->RegisterDataUpdateListener(m_pLoop);
 		if(m_pLoop->Create(m_tcpAddr, m_tcpPort)) {
+
+			//command loop goes here
+
 			m_pLoop->Join();
 			m_pPump->Join();
 		} else {
@@ -153,9 +157,16 @@ int CModbusDaemon::daemonLoop()
 int CModbusDaemon::parentLoop()
 {
 	Log("parentLoop() -->>");
-	m_pIpcConnection->write((const unsigned char*)"Hello!",6);
-	m_pIpcConnection->write((const unsigned char*)"Hello1!",7);
-	m_pIpcConnection->close();
+//	m_pIpcConnection->write((const unsigned char*)"Hello!",6);
+//	m_pIpcConnection->write((const unsigned char*)"Hello1!",7);
+//	m_pIpcConnection->close();
+	CIPCCommand* pCommand = new CIPCCommand(*m_pIpcConnection);
+
+	pCommand->setPayload((unsigned char*)"hello", 5);
+	pCommand->send();
+
+	pCommand->waitForReply();
+
 	Log("parentLoop() --<<");
 	return 0;
 }

@@ -47,6 +47,7 @@ public:
 	virtual ~CIPCServer();
 	bool Create();
 	bool Start();
+	bool Stop();
 	int getSocketId() { return m_socket; }
 };
 

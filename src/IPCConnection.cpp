@@ -15,22 +15,20 @@
 #include "Log.h"
 
 CIPCConnection::CIPCConnection(std::string socket)
-	: m_socketName(socket), m_socket(-1), m_pListener(NULL), m_isClosed(true)
+	: m_socketName(socket), m_socket(-1), m_pListener(NULL), m_isClosed(true), m_isClosePending(false)
 {
 	// TODO Auto-generated constructor stub
 
 }
 
 CIPCConnection::CIPCConnection(int socket)
-	: m_socket(socket), m_pListener(NULL), m_isClosed(false)
+	: m_socket(socket), m_pListener(NULL), m_isClosed(false), m_isClosePending(false)
 {
 }
 
 
 CIPCConnection::~CIPCConnection() {
-	if(m_socket != -1) {
-		::close(m_socket);
-	}
+	close(true);
 }
 
 bool CIPCConnection::connect() {
@@ -74,10 +72,13 @@ void CIPCConnection::NotifyEvent(EConnectionEvent event)
 	if(m_pListener) {
 		switch(event) {
 		case CONN_EVENT_CONN_CLOSED:
-			m_pListener->OnIPCConnectionClosed(this);
-			::close(m_socket);
+			if(m_isClosed) {
+				m_pListener->OnIPCConnectionClosed(this);
+				::close(m_socket);
+			}
 			break;
 		case CONN_EVENT_DATA_READY:
+			m_isClosePending = true;
 			m_pListener->OnIPCConnectionDataReady(this);
 			unsigned char a[256];
 			int k = read(a, 256);
@@ -101,9 +102,15 @@ int CIPCConnection::write(const unsigned char* buffer, int size) {
 	return ::send(m_socket,buffer,size, 0);
 }
 
-int CIPCConnection::close() {
-	m_isClosed = true;
-	return ::close(m_socket);
+int CIPCConnection::close(bool force) {
+	if(!m_isClosePending || force) {
+		m_isClosed = true;
+		m_isClosePending = false;
+		if(m_socket != -1) {
+			return ::close(m_socket);
+		}
+	}
+	return 0;
 }
 
 
