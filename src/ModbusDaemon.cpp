@@ -12,6 +12,9 @@
 #include <vector>
 #include "Utils.h"
 
+#include "settings_lukoil.h"
+#include "settings_tnkbp.h"
+
 static data_parameter_t parameters[] = {
 	{1050100090,0.0,0x100,1},
 	{1050100100,0.0,0x101,1},
@@ -36,33 +39,6 @@ static data_parameter_t parameters[] = {
 #define NUMBER_OF_PARAMETERS (sizeof(parameters) / sizeof(data_parameter_t))
 
 
-static setting_t settings[] = {
-	{"Частота вращения",0.0, 0x257,1},
-	{"Защита по перегрузу",0.0, 0x232,1},
-	{"Время блокировки защиты по перегрузке",0.0, 0x233,1},
-	{"Время блокировки АПВ по перегрузке",0.0, 0x235,1},
-	{"Количество перезапусков",0.0, 0x251,1},
-	{"Защита по недогрузу",0.0, 0x237,1},
-	{"Время блокировки защиты по недогрузу",0.0, 0x238,1},
-	{"Время блокировки АПВ по недогрузу",0.0, 0x23A,1},
-	{"Скважина",0.0, 0x273,1},
-	{"Время работы",0.0, 0x254,1},
-	{"Время паузы",0.0, 0x255,1},
-	{"Время (часы, минуты)",0.0,0x27C,1},
-	{"Дата (число, месяц)",0.0,0x27A,1},
-	{"Напряжение вторичной обмотки трансформатора",0.0, 0x230,1},
-	{"Время блокировки запуска после включения питания",0.0, 0x22D,1},
-	{"Защита по Rиз",0.0, 0x240,1},
-	{"Дисбаланс по U вх.   лин.",0.0, 0x229,1},
-	{"Время срабатывания защиты по дисбалансу U вх.  лин.",0.0, 0x22B,1},
-	{"Дисбаланс по  I  вых. фаз.",0.0, 0x23B,1},
-	{"Время срабатывания защиты по дисбалансу I  вых. фаз",0.0, 0x23D,1},
-	{"Предельная температура ВД ",0.0, 0x24B,1},
-	{"Давление жидкости на приеме насоса ",0.0, 0x246,1},
-};
-
-#define NUMBER_OF_SETTINGS (sizeof(settings) / sizeof(setting_t))
-
 CModbusDaemon::CModbusDaemon(std::string processName, int argc, char* argv[])
 	: CDaemonProcess(processName, argc, argv), m_tcpPort(DEFAULT_TCP_PORT)
 
@@ -72,9 +48,9 @@ CModbusDaemon::CModbusDaemon(std::string processName, int argc, char* argv[])
 	m_configOptions["MODBUS_LocalAddress"] = "127.0.0.1:502";
 	m_configOptions["MODBUS_Rtu_Baudrate"] = "9600";
 	m_configOptions["MODBUS_Rtu_Port"] = "";
+	m_configOptions["MODBUS_Map"] = "LUKOIL";
 
 	m_pLoop = new CModbusLoop();
-	m_pPump = new CDataPump(parameters, NUMBER_OF_PARAMETERS, settings, NUMBER_OF_SETTINGS);
 }
 
 CModbusDaemon::~CModbusDaemon() {
@@ -107,6 +83,7 @@ bool CModbusDaemon::setupEnvironment()
 		return false;
 	}
 
+
 	// default value always exist
 	std::string s = m_configOptions.find(std::string("MODBUS_LocalAddress"))->second;
 
@@ -122,12 +99,27 @@ bool CModbusDaemon::setupEnvironment()
 		return false;
 	}
 
+	s = m_configOptions.find(std::string("MODBUS_Map"))->second;
+
+	if(s == std::string("LUKOIL")) {
+		m_pPump = new CDataPump(parameters, NUMBER_OF_PARAMETERS, lukoil_Settings, NUMBER_OF_SETTINGS_LUKOIL);
+	} else if (s == std::string("TNKBP")) {
+		m_pPump = new CDataPump(parameters, NUMBER_OF_PARAMETERS, tnkbp_Settings, NUMBER_OF_SETTINGS_TNKBP);
+	} else {
+		Log("[config]: unknown MODBUS_Map value");
+		return false;
+	}
+
 	Log("---- ENV ----");
 	Log("ParamsDB name: %s", m_sParamDbName.c_str());
 	Log("EventsDB name: %s", m_sEventDbName.c_str());
 	Log("IP address: %s", m_tcpAddr.c_str());
 	Log("TCP port: %d", m_tcpPort);
+	Log("MODBUS mapping: %s", s.c_str());
 	Log("-------------");
+
+
+
 	return true;
 }
 
