@@ -12,19 +12,20 @@
 #include <sqlite3.h>
 #include <string>
 #include <list>
+#include <stdint.h>
 
 typedef struct {
 	int m_paramId;
 	double m_value;
-	unsigned int m_startReg;
-	unsigned int m_nbRegs;
+	uint16_t m_startReg;
+	uint16_t m_nbRegs;
 } data_parameter_t;
 
 typedef struct {
-	char* m_name;
+	const char* m_name;
 	double m_value;
-	unsigned int m_startReg;
-	unsigned int m_nbRegs;
+	uint16_t m_startReg;
+	uint16_t m_nbRegs;
 } setting_t;
 
 

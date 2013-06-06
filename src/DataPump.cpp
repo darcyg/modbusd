@@ -95,7 +95,7 @@ bool CDataPump::CheckParamsUpdated() {
 	while ((rc =sqlite3_step(m_pParamStm)) ==  SQLITE_ROW) {
 		int paramId = sqlite3_column_int(m_pParamStm, 0);
 		double value = sqlite3_column_double(m_pParamStm, 1);
-		Log( "Found parameter: P:%d V:%g", paramId, value);
+		//Log( "Found parameter: P:%d V:%g", paramId, value);
 
 		for(int i = 0;i < m_nbParams; i++) {
 			if(m_params[i].m_paramId == paramId) {
@@ -120,7 +120,7 @@ bool CDataPump::CheckSettingsUpdated() {
 	while ((rc =sqlite3_step(m_pEventStm)) ==  SQLITE_ROW) {
 		const unsigned char * paramId = sqlite3_column_text(m_pEventStm, 0);
 		double value = sqlite3_column_double(m_pEventStm, 1);
-		Log( "Found setting: S:%s V:%g", paramId, value);
+		//Log( "Found setting: S:%s V:%g", paramId, value);
 
 		for(int i = 0;i < m_nbSettings; i++) {
 			if(strcmp(m_settings[i].m_name,(const char*)paramId) == 0) {

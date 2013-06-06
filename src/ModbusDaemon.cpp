@@ -40,7 +40,7 @@ static data_parameter_t parameters[] = {
 
 
 CModbusDaemon::CModbusDaemon(std::string processName, int argc, char* argv[])
-	: CDaemonProcess(processName, argc, argv), m_tcpPort(DEFAULT_TCP_PORT)
+	: CDaemonProcess(processName, argc, argv), m_pLoop(NULL), m_pPump(NULL), m_tcpPort(DEFAULT_TCP_PORT)
 
 {
 	m_configOptions["ParametersDB"] = "";
@@ -50,7 +50,6 @@ CModbusDaemon::CModbusDaemon(std::string processName, int argc, char* argv[])
 	m_configOptions["MODBUS_Rtu_Port"] = "";
 	m_configOptions["MODBUS_Map"] = "LUKOIL";
 
-	m_pLoop = new CModbusLoop();
 }
 
 CModbusDaemon::~CModbusDaemon() {
@@ -102,8 +101,10 @@ bool CModbusDaemon::setupEnvironment()
 	s = m_configOptions.find(std::string("MODBUS_Map"))->second;
 
 	if(s == std::string("LUKOIL")) {
+		m_pLoop = new CModbusLoop(parameters, NUMBER_OF_PARAMETERS, lukoil_Settings, NUMBER_OF_SETTINGS_LUKOIL);
 		m_pPump = new CDataPump(parameters, NUMBER_OF_PARAMETERS, lukoil_Settings, NUMBER_OF_SETTINGS_LUKOIL);
 	} else if (s == std::string("TNKBP")) {
+		m_pLoop = new CModbusLoop(parameters, NUMBER_OF_PARAMETERS, tnkbp_Settings, NUMBER_OF_SETTINGS_TNKBP);
 		m_pPump = new CDataPump(parameters, NUMBER_OF_PARAMETERS, tnkbp_Settings, NUMBER_OF_SETTINGS_TNKBP);
 	} else {
 		Log("[config]: unknown MODBUS_Map value");
