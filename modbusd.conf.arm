@@ -1,0 +1,13 @@
+#modbusd config
+MODBUS_LocalAddress = 127.0.0.1:1234
+MODBUS_Rtu_Port = /dev/ttySC3
+MODBUS_Rtu_Baudrate = 9600
+ParametersDB = /mnt/www/ControlServer/data/ic_data_value3.sdb
+EventsDB = /mnt/www/ControlServer/data/ic_data_event3.sdb
+
+#possible values are LUKOIL and TNKBP
+MODBUS_Map = LUKOIL
+
+#command to set a setting
+Ritex_Path = /mnt/adapters/Ritex -cmd 9 24 %d~%d SRV 37 -sp a -a comdevice /dev/ttySC1 -a baudrate 9600
+

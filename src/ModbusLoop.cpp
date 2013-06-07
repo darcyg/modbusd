@@ -10,89 +10,94 @@
 
 #include <unistd.h>
 #include <stdio.h>
+#include <vector>
+#include "Utils.h"
+#include <string.h>
+#include <sys/wait.h>
+#include <stdlib.h>
 
 #define MB_FUNCTION_READ_HOLDING 0x3
 #define MB_FUNCTION_READ_INPUT   0x4
 #define MB_FUNCTION_WRITE_HOLDING 0x6
 #define MB_FUNCTION_WRITE_HOLDING_MULTIPLE 0x10
 
-CModbusLoop::CModbusLoop(data_parameter_t* params, int nbParams, setting_t* settings, int nbSettings)
-	: m_ctx(NULL), m_mapping1(NULL), m_mapping2(NULL), m_mapping(NULL), m_headerLength(0), m_socket(-1),
-	  m_params(params), m_settings(settings), m_nbParams(nbParams), m_nbSettings(nbSettings)
-{
-    m_query = new uint8_t[MODBUS_TCP_MAX_ADU_LENGTH];
+CModbusLoop::CModbusLoop(data_parameter_t* params, int nbParams,
+		setting_t* settings, int nbSettings, std::string ritexPath) :
+		m_ctx(NULL), m_mapping1(NULL), m_mapping2(NULL), m_mapping(NULL), m_headerLength(
+				0), m_socket(-1), m_params(params), m_settings(settings), m_nbParams(
+				nbParams), m_nbSettings(nbSettings), m_sRitexPath(ritexPath) {
+	m_query = new uint8_t[MODBUS_TCP_MAX_ADU_LENGTH];
 }
 
 CModbusLoop::~CModbusLoop() {
-	if(m_socket != -1) {
+	if (m_socket != -1) {
 		::close(m_socket);
 		m_socket = -1;
 	}
 
-	if(m_ctx) {
+	if (m_ctx) {
 		modbus_close(m_ctx);
 		modbus_free(m_ctx);
 		m_ctx = NULL;
 	}
 
-	if(m_mapping1) {
+	if (m_mapping1) {
 		modbus_mapping_free(m_mapping1);
 		m_mapping1 = NULL;
 	}
 
-	if(m_mapping2) {
+	if (m_mapping2) {
 		modbus_mapping_free(m_mapping2);
 		m_mapping2 = NULL;
 	}
 
-	if(m_query) {
-		delete [] m_query;
+	if (m_query) {
+		delete[] m_query;
 		m_query = NULL;
 	}
 
 	pthread_mutex_destroy(&m_mutex);
 }
 
-
-bool CModbusLoop::Create(std::string addr, int port)
-{
+bool CModbusLoop::Create(std::string addr, int port) {
 	m_ctx = modbus_new_tcp(addr.c_str(), port);
 
-	if(m_ctx == NULL) {
+	if (m_ctx == NULL) {
 		Log("Unable to allocate libmodbus context");
 		return false;
 	}
 
-    modbus_set_debug(m_ctx, TRUE);
+	modbus_set_debug(m_ctx, TRUE);
 
-    m_headerLength = modbus_get_header_length(m_ctx);
+	m_headerLength = modbus_get_header_length(m_ctx);
 
 	Log("[MODBUS] listen()");
-    m_socket = modbus_tcp_listen(m_ctx, 1);
+	m_socket = modbus_tcp_listen(m_ctx, 1);
 
-    if(m_socket < 0) {
-    	Log("[MODBUS] listen() failed");
-    	return false;
-    }
+	if (m_socket < 0) {
+		Log("[MODBUS] listen() failed");
+		return false;
+	}
 
-    m_mapping1 = modbus_mapping_new(0, 0, HOLDING_REGS_ADDR + HOLDING_REGS_NB, INPUT_REGS_ADDR + INPUT_REGS_NB);
-    m_mapping2 = modbus_mapping_new(0, 0, HOLDING_REGS_ADDR + HOLDING_REGS_NB, INPUT_REGS_ADDR + INPUT_REGS_NB);
+	m_mapping1 = modbus_mapping_new(0, 0, HOLDING_REGS_ADDR + HOLDING_REGS_NB,
+			INPUT_REGS_ADDR + INPUT_REGS_NB);
+	m_mapping2 = modbus_mapping_new(0, 0, HOLDING_REGS_ADDR + HOLDING_REGS_NB,
+			INPUT_REGS_ADDR + INPUT_REGS_NB);
 
-    m_mapping = m_mapping1;
+	m_mapping = m_mapping1;
 
 #if 0
-    for(int i = 0; i < HOLDING_REGS_NB; i++) {
-    	m_mapping->tab_registers[HOLDING_REGS_ADDR+i] = 0xAAAA + i;
-    }
+	for(int i = 0; i < HOLDING_REGS_NB; i++) {
+		m_mapping->tab_registers[HOLDING_REGS_ADDR+i] = 0xAAAA + i;
+	}
 #endif
 
-    if(m_mapping1 == NULL || m_mapping2 == NULL) {
-    	Log("[MODBUS] modbus_mapping_new() failed");
-    	return false;
-    }
+	if (m_mapping1 == NULL || m_mapping2 == NULL) {
+		Log("[MODBUS] modbus_mapping_new() failed");
+		return false;
+	}
 
 	pthread_mutex_init(&m_mutex, NULL);
-
 
 	return CThread::Create();
 }
@@ -109,7 +114,6 @@ inline uint16_t CModbusLoop::getValueF6() {
 	return MODBUS_GET_INT16_FROM_INT8(m_query, m_headerLength + 3);
 }
 
-
 inline uint16_t CModbusLoop::getRegisterCountF10() {
 	return MODBUS_GET_INT16_FROM_INT8(m_query, m_headerLength + 3);
 }
@@ -121,14 +125,19 @@ inline uint16_t CModbusLoop::getByteCountF10() {
 	return m_query[m_headerLength + 5];
 }
 
+inline uint16_t* CModbusLoop::getValuesPtrF10() {
+	return (uint16_t*)(m_query + m_headerLength + 7);
+}
+
 bool CModbusLoop::isValidHoldingReg(uint16_t addr, int count) {
 	int regsFound = 0;
 
-	if(count > m_nbSettings)
+	if (count > m_nbSettings)
 		return false;
 
-	for(int i = 0; i < m_nbSettings || count > regsFound; i++) {
-		if((m_settings[i].m_startReg >= addr) && (m_settings[i].m_startReg < (addr + count))) {
+	for (int i = 0; i < m_nbSettings || count > regsFound; i++) {
+		if ((m_settings[i].m_startReg >= addr)
+				&& (m_settings[i].m_startReg < (addr + count))) {
 			regsFound++;
 		}
 	}
@@ -138,21 +147,104 @@ bool CModbusLoop::isValidInputReg(uint16_t addr, int count) {
 
 	int regsFound = 0;
 
-	if(count > m_nbParams)
+	if (count > m_nbParams)
 		return false;
 
-	for(int i = 0; i < m_nbParams || count > regsFound; i++) {
-		if((m_params[i].m_startReg >= addr) && (m_params[i].m_startReg < (addr + count))) {
+	for (int i = 0; i < m_nbParams || count > regsFound; i++) {
+		if ((m_params[i].m_startReg >= addr)
+				&& (m_params[i].m_startReg < (addr + count))) {
 			regsFound++;
 		}
 	}
 	return regsFound == count;
 }
 
+bool CModbusLoop::WriteSettingByAddress(uint16_t addr, uint16_t value) {
+	int id;
+	pid_t childPid;
+	for (int i = 0; i < m_nbSettings; i++) {
+		if (m_settings[i].m_startReg == addr) {
+			id = m_settings[i].m_id;
+			break;
+		}
+	}
 
+	//prepare command line
+	int maxLen = m_sRitexPath.length() + 2 * 12;
+	char* tmpBuf = new char[maxLen];
 
-void* CModbusLoop::Run()
-{
+	if (tmpBuf == NULL)
+		return false;
+
+	snprintf(tmpBuf, maxLen, m_sRitexPath.c_str(), id, value);
+
+	printf("Command line for exec(): [%s]\n", tmpBuf);
+
+	std::vector<std::string> parts = split(std::string(tmpBuf), ' ');
+
+	delete[] tmpBuf;
+
+	int argc = parts.size();
+
+	if (argc == 0) {
+		return false;
+	}
+	//now create array of parameters
+	char** argv = new char*[argc + 1];
+	if (argv == NULL) {
+		return false;
+	}
+
+	//put NULL in the last element
+	argv[argc] = NULL;
+
+	for (int i = 0; i < argc; i++) {
+		int argLen = parts[i].length() + 1;
+		argv[i] = new char[argLen];
+		strncpy(argv[i], parts[i].c_str(), argLen);
+	}
+
+	int pipefd[2];
+	pipe(pipefd);
+
+	childPid = ::fork();
+	if (childPid == 0) {
+	    close(pipefd[0]);    // close reading end in the child
+
+	    dup2(pipefd[1], 1);  // send stdout to the pipe
+	    dup2(pipefd[1], 2);  // send stderr to the pipe
+
+	    //close(pipefd[1]);    // this descriptor is no longer needed
+
+		execvp(parts[0].c_str(), argv);
+		exit(0);
+	} else {
+		int b = 0, rc = 0;
+	    char buffer[1024];
+	    close(pipefd[1]);  // close the write end of the pipe in the parent
+
+	    do {
+	    	rc = read(pipefd[0], buffer + b, sizeof(buffer) - b);
+	    	b += rc;
+	    } while (rc != 0 || b == 1023);
+	    buffer[b] = '\0';
+	    close(pipefd[0]);  // close the write end of the pipe in the parent
+
+	    printf("[CHILD RETURNED] %s\n", buffer);
+
+		int child_status;
+		waitpid(childPid, &child_status, 0);
+
+		//parse response
+		if(buffer[0] == '8')
+			return true;
+		else
+			return false;
+	}
+	return true;
+}
+
+void* CModbusLoop::Run() {
 	Log("[MODBUS] Run() -->>");
 
 	while (true) {
@@ -160,7 +252,7 @@ void* CModbusLoop::Run()
 		modbus_tcp_accept(m_ctx, &m_socket);
 		Log("[MODBUS] accept(2)");
 
-		for(;;) {
+		for (;;) {
 			int rc;
 
 			uint8_t function;
@@ -182,62 +274,107 @@ void* CModbusLoop::Run()
 
 			Log("Got query: length=%d FUNCTION: 0x%X", rc, function);
 
-			for(int i = 0; i < rc; i++) {
+			for (int i = 0; i < rc; i++) {
 				printf("0x%x ", m_query[i]);
 			}
 			printf("\n");
 
 			switch (function) {
 			case MB_FUNCTION_WRITE_HOLDING:
-				Log("MB_FUNCTION_WRITE_HOLDING: addr=0x%X value=0x%X", address, getValueF6());
-				if(!isValidHoldingReg(address,1)) {
-					rc = modbus_reply_exception(m_ctx, m_query, MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+				Log("MB_FUNCTION_WRITE_HOLDING: addr=0x%X value=0x%X", address,
+						getValueF6());
+				if (!isValidHoldingReg(address, 1)) {
+					rc = modbus_reply_exception(m_ctx, m_query,
+							MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
 					break;
 				}
-				//TODO: do actual write and replay
+				if(!WriteSettingByAddress(address, getValueF6())) {
+					rc = modbus_reply_exception(m_ctx, m_query,
+							MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE);
+				} else {
+					pthread_mutex_lock(&m_mutex);
+					rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
+					pthread_mutex_unlock(&m_mutex);
+				}
 				break;
 
 			case MB_FUNCTION_WRITE_HOLDING_MULTIPLE:
-				Log("MB_FUNCTION_WRITE_HOLDING_MULTIPLE: addr=0x%X n_reg=%d n_byte=%d", address, getRegisterCountF10(), getByteCountF10());
-				if(!isValidHoldingReg(address,1)) {
-					rc = modbus_reply_exception(m_ctx, m_query, MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
-					break;
-				}
-				//TODO: do actual write and replay
-				break;
-
-			// F3 read multiple regs. settings
-			case MB_FUNCTION_READ_HOLDING:
-				Log("MB_FUNCTION_READ_HOLDING: addr=0x%X count=%d", address, getRegisterCountF3());
-				if(!isValidHoldingReg(address, getRegisterCountF3())) {
-					rc = modbus_reply_exception(m_ctx, m_query, MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
-					break;
-				} else {
-					pthread_mutex_lock(&m_mutex);
-					rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
-					pthread_mutex_unlock(&m_mutex);
-				}
-				break;
-
-			// F4 read multiple regs. params
-			case MB_FUNCTION_READ_INPUT:
-				Log("MB_FUNCTION_READ_INPUT: addr=0x%X count=%d", address, getRegisterCountF4());
-				if(!isValidInputReg(address, getRegisterCountF4())) {
-					rc = modbus_reply_exception(m_ctx, m_query, MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
-					break;
-				} else {
-					pthread_mutex_lock(&m_mutex);
-					rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
-					pthread_mutex_unlock(&m_mutex);
-				}
-				break;
-
-			default:
 				{
-					Log("UNSUPPORTED FUNCTION: 0x%X", function);
-					rc = modbus_reply_exception(m_ctx, m_query, MODBUS_EXCEPTION_ILLEGAL_FUNCTION);
-					break;
+					bool isException = false;
+					Log(
+							"MB_FUNCTION_WRITE_HOLDING_MULTIPLE: addr=0x%X n_reg=%d n_byte=%d",
+							address, getRegisterCountF10(), getByteCountF10());
+
+					if (!isValidHoldingReg(address, getRegisterCountF10())) {
+						rc = modbus_reply_exception(m_ctx, m_query,
+								MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+						Log("------------0");
+						break;
+					}
+
+					Log("------------1");
+					for(int i = 0; i < getRegisterCountF10(); i++) {
+						Log("------------2");
+
+						uint16_t value = getValuesPtrF10()[i];
+						Log("------------3");
+
+						if(!WriteSettingByAddress(address + i, value)) {
+							Log("------------4");
+							rc = modbus_reply_exception(m_ctx, m_query,
+									MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE);
+							isException = true;
+							break;
+						}
+					}
+					Log("------------5");
+
+					if(!isException) {
+						Log("------------6");
+
+						pthread_mutex_lock(&m_mutex);
+						rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
+						pthread_mutex_unlock(&m_mutex);
+					}
 				}
+				break;
+
+				// F3 read multiple regs. settings
+			case MB_FUNCTION_READ_HOLDING:
+				Log("MB_FUNCTION_READ_HOLDING: addr=0x%X count=%d", address,
+						getRegisterCountF3());
+				if (!isValidHoldingReg(address, getRegisterCountF3())) {
+					rc = modbus_reply_exception(m_ctx, m_query,
+							MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+					break;
+				} else {
+					pthread_mutex_lock(&m_mutex);
+					rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
+					pthread_mutex_unlock(&m_mutex);
+				}
+				break;
+
+				// F4 read multiple regs. params
+			case MB_FUNCTION_READ_INPUT:
+				Log("MB_FUNCTION_READ_INPUT: addr=0x%X count=%d", address,
+						getRegisterCountF4());
+				if (!isValidInputReg(address, getRegisterCountF4())) {
+					rc = modbus_reply_exception(m_ctx, m_query,
+							MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+					break;
+				} else {
+					pthread_mutex_lock(&m_mutex);
+					rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
+					pthread_mutex_unlock(&m_mutex);
+				}
+				break;
+
+			default: {
+				Log("UNSUPPORTED FUNCTION: 0x%X", function);
+				rc = modbus_reply_exception(m_ctx, m_query,
+						MODBUS_EXCEPTION_ILLEGAL_FUNCTION);
+				break;
+			}
 			}
 
 			if (rc == -1) {
@@ -250,25 +387,22 @@ void* CModbusLoop::Run()
 	return NULL;
 }
 
-void CModbusLoop::OnDataUpdated(const data_parameter_t* params, int nbParams, const setting_t* settings, int nbSettings)
-{
+void CModbusLoop::OnDataUpdated(const data_parameter_t* params, int nbParams,
+		const setting_t* settings, int nbSettings) {
 	Log("OnDataUpdated(): nbParams=%d nbSettings=%d", nbParams, nbSettings);
 
 	modbus_mapping_t * pm = m_mapping == m_mapping1 ? m_mapping2 : m_mapping1;
 
-	for(int i = 0; i < nbParams; i++) {
+	for (int i = 0; i < nbParams; i++) {
 		pm->tab_input_registers[params[i].m_startReg] = params[i].m_value;
 	}
 
-	for(int i = 0; i < nbSettings; i++) {
+	for (int i = 0; i < nbSettings; i++) {
 		pm->tab_registers[settings[i].m_startReg] = settings[i].m_value;
 	}
-
 
 	pthread_mutex_lock(&m_mutex);
 	m_mapping = pm;
 	pthread_mutex_unlock(&m_mutex);
 }
-
-
 

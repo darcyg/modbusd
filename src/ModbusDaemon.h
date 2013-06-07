@@ -22,6 +22,7 @@ protected:
 	CDataPump* m_pPump;
 	std::string m_sParamDbName;
 	std::string m_sEventDbName;
+	std::string m_sRitexPath;
 	int m_tcpPort;
 	std::string m_tcpAddr;
 protected:

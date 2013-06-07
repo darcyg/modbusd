@@ -35,8 +35,7 @@ bool CConfigFile::parse(IOnConfigOptionCallback * const cb) {
 
 	while (std::getline(infile, line))
 	{
-	    std::stringstream iss(line);
-	    std::string a, b;
+	    std::vector<std::string> parts;
 
 	    line = choppa(line," \t\n");
 
@@ -45,13 +44,19 @@ bool CConfigFile::parse(IOnConfigOptionCallback * const cb) {
 #ifdef __DEBUG_CONF_PARSER__
 	    Log("LINE: %s", line.c_str());
 #endif
+	    parts = split(line, '=');
 
-	    if (!(iss >> a >> b)) {
-			Log("Error parsing config file %s", m_fileName.c_str());
-	    	return false;
-	    }
-	    if(!cb->OnConfigOption(a,b)) {
-			Log("Error parsing config file %s: option %s was not accepted", m_fileName.c_str(), a.c_str());
+		if (parts.size() != 2) {
+			Log("Error parsing config file %s\n\t at line [%s]", m_fileName.c_str(), line.c_str());
+			return false;
+		}
+
+
+	    parts[0] = choppa(parts[0], " \t\n");
+	    parts[1] = choppa(parts[1], " \t\n");
+
+	    if(!cb->OnConfigOption(parts[0], parts[1])) {
+			Log("Error parsing config file %s: option %s was not accepted", m_fileName.c_str(), parts[0].c_str());
 			return false;
 	    }
 	}

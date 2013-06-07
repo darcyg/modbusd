@@ -22,6 +22,7 @@ typedef struct {
 } data_parameter_t;
 
 typedef struct {
+	int m_id;
 	const char* m_name;
 	double m_value;
 	uint16_t m_startReg;

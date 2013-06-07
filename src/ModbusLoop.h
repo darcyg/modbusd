@@ -35,6 +35,8 @@ protected:
 	int m_nbParams;
 	int m_nbSettings;
 
+	std::string m_sRitexPath;
+
 	pthread_mutex_t m_mutex;
 
 	uint8_t getFunction();
@@ -42,10 +44,13 @@ protected:
 	uint16_t getValueF6();
 	uint16_t getRegisterCountF10();
 	uint16_t getByteCountF10();
+	uint16_t* getValuesPtrF10();
+
 	bool isValidHoldingReg(uint16_t addr, int count);
 	bool isValidInputReg(uint16_t addr, int count);
+	bool WriteSettingByAddress(uint16_t addr, uint16_t value);
 public:
-	CModbusLoop(data_parameter_t* params, int nbParams, setting_t* settings, int nbSettings);
+	CModbusLoop(data_parameter_t* params, int nbParams, setting_t* settings, int nbSettings, std::string ritexPath);
 	virtual ~CModbusLoop();
 	virtual void* Run();
 	virtual bool Create(std::string addr, int port);

@@ -49,7 +49,7 @@ CModbusDaemon::CModbusDaemon(std::string processName, int argc, char* argv[])
 	m_configOptions["MODBUS_Rtu_Baudrate"] = "9600";
 	m_configOptions["MODBUS_Rtu_Port"] = "";
 	m_configOptions["MODBUS_Map"] = "LUKOIL";
-
+	m_configOptions["Ritex_Path"] = "";
 }
 
 CModbusDaemon::~CModbusDaemon() {
@@ -82,6 +82,13 @@ bool CModbusDaemon::setupEnvironment()
 		return false;
 	}
 
+	m_sRitexPath = m_configOptions.find(std::string("Ritex_Path"))->second;
+
+	if(m_sRitexPath.empty()) {
+		Log("[config]: Ritex_Path option is missing");
+		return false;
+	}
+
 
 	// default value always exist
 	std::string s = m_configOptions.find(std::string("MODBUS_LocalAddress"))->second;
@@ -101,10 +108,10 @@ bool CModbusDaemon::setupEnvironment()
 	s = m_configOptions.find(std::string("MODBUS_Map"))->second;
 
 	if(s == std::string("LUKOIL")) {
-		m_pLoop = new CModbusLoop(parameters, NUMBER_OF_PARAMETERS, lukoil_Settings, NUMBER_OF_SETTINGS_LUKOIL);
+		m_pLoop = new CModbusLoop(parameters, NUMBER_OF_PARAMETERS, lukoil_Settings, NUMBER_OF_SETTINGS_LUKOIL, m_sRitexPath);
 		m_pPump = new CDataPump(parameters, NUMBER_OF_PARAMETERS, lukoil_Settings, NUMBER_OF_SETTINGS_LUKOIL);
 	} else if (s == std::string("TNKBP")) {
-		m_pLoop = new CModbusLoop(parameters, NUMBER_OF_PARAMETERS, tnkbp_Settings, NUMBER_OF_SETTINGS_TNKBP);
+		m_pLoop = new CModbusLoop(parameters, NUMBER_OF_PARAMETERS, tnkbp_Settings, NUMBER_OF_SETTINGS_TNKBP, m_sRitexPath);
 		m_pPump = new CDataPump(parameters, NUMBER_OF_PARAMETERS, tnkbp_Settings, NUMBER_OF_SETTINGS_TNKBP);
 	} else {
 		Log("[config]: unknown MODBUS_Map value");
