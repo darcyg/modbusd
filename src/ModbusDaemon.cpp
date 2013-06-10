@@ -6,6 +6,9 @@
  */
 
 #include "ModbusDaemon.h"
+#include "ModbusTcpLoop.h"
+#include "ModbusRtuLoop.h"
+
 #include "Log.h"
 
 #include <stdlib.h>
@@ -15,7 +18,7 @@
 #include "settings_lukoil.h"
 #include "settings_tnkbp.h"
 
-static data_parameter_t parameters[] = {
+static data_parameter_t commonParameters[] = {
 	{1050100090,0.0,0x100,1},
 	{1050100100,0.0,0x101,1},
 	{1050110050,0.0,0x108,1},
@@ -36,18 +39,21 @@ static data_parameter_t parameters[] = {
 	{1080100010,0.0,0x129,1},
 };
 
-#define NUMBER_OF_PARAMETERS (sizeof(parameters) / sizeof(data_parameter_t))
+#define NUMBER_OF_PARAMETERS (sizeof(commonParameters) / sizeof(data_parameter_t))
 
 
 CModbusDaemon::CModbusDaemon(std::string processName, int argc, char* argv[])
-	: CDaemonProcess(processName, argc, argv), m_pLoop(NULL), m_pPump(NULL), m_tcpPort(DEFAULT_TCP_PORT)
+	: CDaemonProcess(processName, argc, argv), m_pLoop(NULL), m_pPump(NULL), m_tcpPort(DEFAULT_TCP_PORT),
+	  m_modbusMode(MODBUS_MODE_NONE)
 
 {
 	m_configOptions["ParametersDB"] = "";
 	m_configOptions["EventsDB"] = "";
-	m_configOptions["MODBUS_LocalAddress"] = "127.0.0.1:502";
+	m_configOptions["MODBUS_LocalAddress"] = "";
 	m_configOptions["MODBUS_Rtu_Baudrate"] = "9600";
 	m_configOptions["MODBUS_Rtu_Port"] = "";
+	m_configOptions["MODBUS_Rtu_Settings"] = "8N1";
+	m_configOptions["MODBUS_Rtu_SlaveID"] = "";
 	m_configOptions["MODBUS_Map"] = "LUKOIL";
 	m_configOptions["Ritex_Path"] = "";
 }
@@ -66,7 +72,35 @@ CModbusDaemon::~CModbusDaemon() {
 
 bool CModbusDaemon::setupEnvironment()
 {
+	// default values for RTU
+	int comSpeed;
+	char comParity;
+	int comBpb;
+	int comStopBits;
+	int slaveId;
+
 	config_options_iterator itr;
+
+	std::string ipAddr = m_configOptions.find(std::string("MODBUS_LocalAddress"))->second;
+
+	std::string comPort = m_configOptions.find(std::string("MODBUS_Rtu_Port"))->second;
+
+	if(ipAddr.empty() && comPort.empty()) {
+		Log("[config]: either MODBUS_LocalAddress or MODBUS_Rtu_Port must be specified");
+		return false;
+	}
+
+
+	if(!ipAddr.empty() && !comPort.empty()) {
+		Log("[config]: Both MODBUS_LocalAddress and MODBUS_Rtu_Port are specified");
+		return false;
+	}
+
+	if(!ipAddr.empty()) {
+		m_modbusMode = MODBUS_MODE_TCP;
+	} else {
+		m_modbusMode = MODBUS_MODE_RTU;
+	}
 
 	m_sParamDbName = m_configOptions.find(std::string("ParametersDB"))->second;
 
@@ -89,41 +123,94 @@ bool CModbusDaemon::setupEnvironment()
 		return false;
 	}
 
+	data_parameter_t* parameters = commonParameters;
+	int nbParams = NUMBER_OF_PARAMETERS;
 
-	// default value always exist
-	std::string s = m_configOptions.find(std::string("MODBUS_LocalAddress"))->second;
+	int nbSettings = 0;
+	setting_t* settings = NULL;
 
-	std::vector<std::string> v = split(s,':');
+	std::string mapping = m_configOptions.find(std::string("MODBUS_Map"))->second;
 
-	if(v.size() > 0) {
-		m_tcpAddr = v[0];
-		if(v.size() > 1) {
-			m_tcpPort = atoi(v[1].c_str());
+	if(mapping == std::string("LUKOIL")) {
+		settings = lukoil_Settings;
+		nbSettings = NUMBER_OF_SETTINGS_LUKOIL;
+	} else if (mapping == std::string("TNKBP")) {
+		settings = tnkbp_Settings;
+		nbSettings = NUMBER_OF_SETTINGS_TNKBP;
+	} else {
+		Log("[config]: unknown MODBUS_Map value: possible [LUKOIL|TNKBP]");
+		return false;
+	}
+
+
+
+	if (m_modbusMode == MODBUS_MODE_TCP) {
+		std::vector<std::string> v = split(ipAddr,':');
+
+		if(v.size() > 0) {
+			m_tcpAddr = v[0];
+			if(v.size() > 1) {
+				m_tcpPort = atoi(v[1].c_str());
+			}
+		} else {
+			Log("[config]: Wrong IP address format for MODBUS_LocalAddress");
+			return false;
 		}
+
+		m_pLoop = new CModbusTcpLoop(parameters, nbParams, settings, nbSettings, m_sRitexPath,
+				m_tcpAddr, m_tcpPort);
+
 	} else {
-		Log("[config]: Wrong IP address format for MODBUS_LocalAddress");
-		return false;
+		std::string s = m_configOptions.find(std::string("MODBUS_Rtu_SlaveID"))->second;
+
+		if(s.empty()) {
+			Log("[config]: MODBUS_Rtu_SlaveID must be defined for RTU mode");
+			return false;
+		}
+
+		slaveId = atoi(s.c_str());
+
+		s = m_configOptions.find(std::string("MODBUS_Rtu_Baudrate"))->second;
+
+		if(!s.empty()) {
+			comSpeed = atoi(s.c_str());
+		}
+
+		s = m_configOptions.find(std::string("MODBUS_Rtu_Settings"))->second;
+
+		if(s.length() == 3) {
+			comParity = s.substr(1,1)[0];
+			comBpb = atoi(s.substr(0,1).c_str());
+			comStopBits = atoi(s.substr(2,1).c_str());
+		} else {
+			Log("[config]: incorrect format of MODBUS_Rtu_Settings. Ex: 8N1");
+			return false;
+		}
+
+		m_pLoop = new CModbusRtuLoop(parameters, nbParams, settings, nbSettings, m_sRitexPath,
+				comPort, comSpeed, comBpb, comParity, comStopBits);
 	}
 
-	s = m_configOptions.find(std::string("MODBUS_Map"))->second;
+	m_pPump = new CDataPump(parameters, nbParams, settings, nbSettings);
 
-	if(s == std::string("LUKOIL")) {
-		m_pLoop = new CModbusLoop(parameters, NUMBER_OF_PARAMETERS, lukoil_Settings, NUMBER_OF_SETTINGS_LUKOIL, m_sRitexPath);
-		m_pPump = new CDataPump(parameters, NUMBER_OF_PARAMETERS, lukoil_Settings, NUMBER_OF_SETTINGS_LUKOIL);
-	} else if (s == std::string("TNKBP")) {
-		m_pLoop = new CModbusLoop(parameters, NUMBER_OF_PARAMETERS, tnkbp_Settings, NUMBER_OF_SETTINGS_TNKBP, m_sRitexPath);
-		m_pPump = new CDataPump(parameters, NUMBER_OF_PARAMETERS, tnkbp_Settings, NUMBER_OF_SETTINGS_TNKBP);
-	} else {
-		Log("[config]: unknown MODBUS_Map value");
-		return false;
-	}
 
 	Log("---- ENV ----");
+	Log("Modbus backend: %s", m_modbusMode == MODBUS_MODE_TCP ? "TCP" : "RTU");
 	Log("ParamsDB name: %s", m_sParamDbName.c_str());
 	Log("EventsDB name: %s", m_sEventDbName.c_str());
-	Log("IP address: %s", m_tcpAddr.c_str());
-	Log("TCP port: %d", m_tcpPort);
-	Log("MODBUS mapping: %s", s.c_str());
+	Log("MODBUS mapping: %s", mapping.c_str());
+
+	if(m_modbusMode == MODBUS_MODE_TCP) {
+		Log("IP address: %s", m_tcpAddr.c_str());
+		Log("TCP port: %d", m_tcpPort);
+	} else {
+		Log("RTU port: %s", comPort.c_str());
+		Log("RTU speed: %d",comSpeed);
+		Log("RTU bpb: %d", comBpb);
+		Log("TRU parity %c", comParity);
+		Log("RTU stop bits %sd", comStopBits);
+	}
+
 	Log("-------------");
 
 
@@ -137,7 +224,7 @@ int CModbusDaemon::daemonLoop()
 	Log("daemonLoop() -->>");
 	if(m_pPump->Create(m_sParamDbName, m_sEventDbName)) {
 		m_pPump->RegisterDataUpdateListener(m_pLoop);
-		if(m_pLoop->Create(m_tcpAddr, m_tcpPort)) {
+		if(m_pLoop->Create()) {
 			m_pLoop->Join();
 			m_pPump->Join();
 		} else {

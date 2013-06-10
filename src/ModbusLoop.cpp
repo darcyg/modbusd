@@ -24,16 +24,13 @@
 CModbusLoop::CModbusLoop(data_parameter_t* params, int nbParams,
 		setting_t* settings, int nbSettings, std::string ritexPath) :
 		m_ctx(NULL), m_mapping1(NULL), m_mapping2(NULL), m_mapping(NULL), m_headerLength(
-				0), m_socket(-1), m_params(params), m_settings(settings), m_nbParams(
+				0), m_query(NULL), m_params(params), m_settings(settings), m_nbParams(
 				nbParams), m_nbSettings(nbSettings), m_sRitexPath(ritexPath) {
-	m_query = new uint8_t[MODBUS_TCP_MAX_ADU_LENGTH];
+
 }
 
 CModbusLoop::~CModbusLoop() {
-	if (m_socket != -1) {
-		::close(m_socket);
-		m_socket = -1;
-	}
+
 
 	if (m_ctx) {
 		modbus_close(m_ctx);
@@ -59,25 +56,8 @@ CModbusLoop::~CModbusLoop() {
 	pthread_mutex_destroy(&m_mutex);
 }
 
-bool CModbusLoop::Create(std::string addr, int port) {
-	m_ctx = modbus_new_tcp(addr.c_str(), port);
+bool CModbusLoop::Create() {
 
-	if (m_ctx == NULL) {
-		Log("Unable to allocate libmodbus context");
-		return false;
-	}
-
-	modbus_set_debug(m_ctx, TRUE);
-
-	m_headerLength = modbus_get_header_length(m_ctx);
-
-	Log("[MODBUS] listen()");
-	m_socket = modbus_tcp_listen(m_ctx, 1);
-
-	if (m_socket < 0) {
-		Log("[MODBUS] listen() failed");
-		return false;
-	}
 
 	m_mapping1 = modbus_mapping_new(0, 0, HOLDING_REGS_ADDR + HOLDING_REGS_NB,
 			INPUT_REGS_ADDR + INPUT_REGS_NB);
@@ -98,6 +78,8 @@ bool CModbusLoop::Create(std::string addr, int port) {
 	}
 
 	pthread_mutex_init(&m_mutex, NULL);
+
+	modbus_set_debug(m_ctx, FALSE);
 
 	return CThread::Create();
 }
@@ -249,7 +231,7 @@ void* CModbusLoop::Run() {
 
 	while (true) {
 		Log("[MODBUS] accept(1)");
-		modbus_tcp_accept(m_ctx, &m_socket);
+		AcceptModbusConnection();
 		Log("[MODBUS] accept(2)");
 
 		for (;;) {

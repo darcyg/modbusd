@@ -15,6 +15,10 @@
 
 #define DEFAULT_TCP_PORT 502
 
+#define MODBUS_MODE_NONE -1
+#define MODBUS_MODE_RTU   0
+#define MODBUS_MODE_TCP   1
+
 class CModbusDaemon: public CDaemonProcess {
 
 protected:
@@ -25,6 +29,7 @@ protected:
 	std::string m_sRitexPath;
 	int m_tcpPort;
 	std::string m_tcpAddr;
+	int m_modbusMode;
 protected:
 	virtual int daemonLoop();
 	virtual int parentLoop();

@@ -27,7 +27,6 @@ protected:
     modbus_mapping_t *m_mapping;
 
     int m_headerLength;
-    int m_socket;
     uint8_t *m_query;
 
 	data_parameter_t* m_params;
@@ -49,11 +48,13 @@ protected:
 	bool isValidHoldingReg(uint16_t addr, int count);
 	bool isValidInputReg(uint16_t addr, int count);
 	bool WriteSettingByAddress(uint16_t addr, uint16_t value);
+
+	virtual int AcceptModbusConnection() = 0;
 public:
 	CModbusLoop(data_parameter_t* params, int nbParams, setting_t* settings, int nbSettings, std::string ritexPath);
 	virtual ~CModbusLoop();
 	virtual void* Run();
-	virtual bool Create(std::string addr, int port);
+	virtual bool Create();
 
 public:
 	virtual void OnDataUpdated(const data_parameter_t* params, int nbParams, const setting_t* settings, int nbSettings);
