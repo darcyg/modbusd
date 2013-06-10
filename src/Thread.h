@@ -10,6 +10,14 @@
 
 #include <pthread.h>
 
+enum EThreadStatus {
+	THREAD_STATE_RUNNING
+};
+
+class IThreadStateListener {
+
+};
+
 class CThread {
 private:
 	pthread_t m_hHandle;

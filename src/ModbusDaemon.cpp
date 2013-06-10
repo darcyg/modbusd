@@ -208,7 +208,7 @@ bool CModbusDaemon::setupEnvironment()
 		Log("RTU speed: %d",comSpeed);
 		Log("RTU bpb: %d", comBpb);
 		Log("TRU parity %c", comParity);
-		Log("RTU stop bits %sd", comStopBits);
+		Log("RTU stop bits %d", comStopBits);
 	}
 
 	Log("-------------");
@@ -226,6 +226,8 @@ int CModbusDaemon::daemonLoop()
 		m_pPump->RegisterDataUpdateListener(m_pLoop);
 		if(m_pLoop->Create()) {
 			m_pLoop->Join();
+			//FIXME: implement thread state listeners and cancel from it
+			m_pPump->Cancel();
 			m_pPump->Join();
 		} else {
 			Log("Error creating main loop");

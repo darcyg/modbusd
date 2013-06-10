@@ -8,6 +8,7 @@
 #include "ModbusTcpLoop.h"
 #include <modbus.h>
 #include "Log.h"
+#include <unistd.h>
 
 CModbusTcpLoop::CModbusTcpLoop(data_parameter_t* params, int nbParams, setting_t* settings, int nbSettings, std::string ritexPath,
 		std::string addr, int port) :

@@ -129,7 +129,6 @@ EExecutionContext CDaemonProcess::becomeDaemon()
 		return CONTEXT_ERROR;
 	}
 #endif
-	//*((int*)0) = 1;
 	Log( "DAEMON PID: %d", ::getpid());
 
 	return CONTEXT_DAEMON;
@@ -156,7 +155,7 @@ CDaemonProcess::EError CDaemonProcess::start() {
 		// we have created server connection, now can run as daemon if required
 		// parse config file first
 
-		std::string configName = std::string("./") + m_daemonName + std::string(".conf");
+		std::string configName = std::string("/etc/") + m_daemonName + std::string(".conf");
 		CConfigFile* pConfig = new CConfigFile(configName);
 
 		if(!pConfig->parse(this)) {

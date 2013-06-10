@@ -142,7 +142,7 @@ bool CModbusLoop::isValidInputReg(uint16_t addr, int count) {
 }
 
 bool CModbusLoop::WriteSettingByAddress(uint16_t addr, uint16_t value) {
-	int id;
+	int id = -1;
 	pid_t childPid;
 	for (int i = 0; i < m_nbSettings; i++) {
 		if (m_settings[i].m_startReg == addr) {
@@ -150,6 +150,9 @@ bool CModbusLoop::WriteSettingByAddress(uint16_t addr, uint16_t value) {
 			break;
 		}
 	}
+
+	if(id == -1)
+		return false;
 
 	//prepare command line
 	int maxLen = m_sRitexPath.length() + 2 * 12;
@@ -228,14 +231,19 @@ bool CModbusLoop::WriteSettingByAddress(uint16_t addr, uint16_t value) {
 
 void* CModbusLoop::Run() {
 	Log("[MODBUS] Run() -->>");
+	int rc;
 
 	while (true) {
 		Log("[MODBUS] accept(1)");
-		AcceptModbusConnection();
-		Log("[MODBUS] accept(2)");
+		rc = AcceptModbusConnection();
+		Log("[MODBUS] accept(2) %d", rc);
+
+		if(rc < 0) {
+			Log("[MODBUS] error accepting connection", rc);
+			break;
+		}
 
 		for (;;) {
-			int rc;
 
 			uint8_t function;
 			uint16_t address;
