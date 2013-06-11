@@ -193,7 +193,7 @@ bool CModbusDaemon::setupEnvironment()
 		}
 
 		m_pLoop = new CModbusRtuLoop(parameters, nbParams, settings, nbSettings, m_sRitexPath,
-				comPort, comSpeed, comBpb, comParity, comStopBits);
+				comPort, comSpeed, comBpb, comParity, comStopBits, slaveId);
 	}
 
 	m_pPump = new CDataPump(parameters, nbParams, settings, nbSettings);
