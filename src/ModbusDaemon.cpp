@@ -170,6 +170,11 @@ bool CModbusDaemon::setupEnvironment()
 
 		slaveId = atoi(s.c_str());
 
+		if(slaveId == 0 && s != "0") {
+			Log("[config]: MODBUS_Rtu_SlaveID: must be a number, found %s", s.c_str());
+			return false;
+		}
+
 		s = m_configOptions.find(std::string("MODBUS_Rtu_Baudrate"))->second;
 
 		if(!s.empty()) {
@@ -204,6 +209,7 @@ bool CModbusDaemon::setupEnvironment()
 		Log("IP address: %s", m_tcpAddr.c_str());
 		Log("TCP port: %d", m_tcpPort);
 	} else {
+		Log("RTU slave ID: %d", slaveId);
 		Log("RTU port: %s", comPort.c_str());
 		Log("RTU speed: %d",comSpeed);
 		Log("RTU bpb: %d", comBpb);

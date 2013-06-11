@@ -7,7 +7,7 @@
 MODBUS_Rtu_Port = /dev/ttySC3
 MODBUS_Rtu_Baudrate = 9600
 MODBUS_Rtu_Settings = 8N1
-MODBUS_Rtu_SlaveID = 21;
+MODBUS_Rtu_SlaveID = 21
 
 # COMMON
 ParametersDB = /mnt/www/ControlServer/data/ic_data_value3.sdb
