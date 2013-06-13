@@ -17,29 +17,9 @@
 
 #include "settings_lukoil.h"
 #include "settings_tnkbp.h"
+#include "params_lukoil.h"
+#include "params_tnkbp.h"
 
-static data_parameter_t commonParameters[] = {
-	{1050100090,0.0,0x100,1},
-	{1050100100,0.0,0x101,1},
-	{1050110050,0.0,0x108,1},
-	{1050110060,0.0,0x109,1},
-	{1050110070,0.0,0x10A,1},
-	{1050111000,0.0,0x10C,1},
-	{1050111010,0.0,0x10D,1},
-	{1050111020,0.0,0x10E,1},
-	{1050100060,0.0,0x10f,1},
-	{1050100050,0.0,0x111,1},
-	{1050112010,0.0,0x112,1},
-	{1050112020,0.0,0x113,1},
-	{1050117000,0.0,0x114,1},
-	{1080105030,0.0,0x121,1},
-	{1080104010,0.0,0x125,1},
-	{1080104020,0.0,0x126,1},
-	{1080100009,0.0,0x128,1},
-	{1080100010,0.0,0x129,1},
-};
-
-#define NUMBER_OF_PARAMETERS (sizeof(commonParameters) / sizeof(data_parameter_t))
 
 
 CModbusDaemon::CModbusDaemon(std::string processName, int argc, char* argv[])
@@ -123,8 +103,8 @@ bool CModbusDaemon::setupEnvironment()
 		return false;
 	}
 
-	data_parameter_t* parameters = commonParameters;
-	int nbParams = NUMBER_OF_PARAMETERS;
+	data_parameter_t* parameters = NULL;
+	int nbParams = 0;
 
 	int nbSettings = 0;
 	setting_t* settings = NULL;
@@ -134,9 +114,14 @@ bool CModbusDaemon::setupEnvironment()
 	if(mapping == std::string("LUKOIL")) {
 		settings = lukoil_Settings;
 		nbSettings = NUMBER_OF_SETTINGS_LUKOIL;
+		parameters = lukoil_params;
+		nbParams = NUMBER_OF_PARAMS_LUKOIL;
+
 	} else if (mapping == std::string("TNKBP")) {
 		settings = tnkbp_Settings;
 		nbSettings = NUMBER_OF_SETTINGS_TNKBP;
+		parameters = tnkbp_params;
+		nbParams = NUMBER_OF_PARAMS_TNKBP;
 	} else {
 		Log("[config]: unknown MODBUS_Map value: possible [LUKOIL|TNKBP]");
 		return false;
