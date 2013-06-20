@@ -16,6 +16,8 @@
 #include <sys/wait.h>
 #include <stdlib.h>
 
+#undef CHECK_REGISTER_ADDRESS
+
 #define MB_FUNCTION_READ_HOLDING 0x3
 #define MB_FUNCTION_READ_INPUT   0x4
 #define MB_FUNCTION_WRITE_HOLDING 0x6
@@ -112,6 +114,7 @@ inline uint16_t* CModbusLoop::getValuesPtrF10() {
 }
 
 bool CModbusLoop::isValidHoldingReg(uint16_t addr, int count) {
+#ifdef CHECK_REGISTER_ADDRESS
 	int regsFound = 0;
 
 	if (count > m_nbSettings)
@@ -124,9 +127,12 @@ bool CModbusLoop::isValidHoldingReg(uint16_t addr, int count) {
 		}
 	}
 	return regsFound == count;
+#else
+	return true;
+#endif
 }
 bool CModbusLoop::isValidInputReg(uint16_t addr, int count) {
-
+#ifdef CHECK_REGISTER_ADDRESS
 	int regsFound = 0;
 
 	if (count > m_nbParams)
@@ -139,6 +145,9 @@ bool CModbusLoop::isValidInputReg(uint16_t addr, int count) {
 		}
 	}
 	return regsFound == count;
+#else
+	return true;
+#endif
 }
 
 bool CModbusLoop::WriteSettingByAddress(uint16_t addr, uint16_t value) {
