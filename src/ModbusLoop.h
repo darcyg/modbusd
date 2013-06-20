@@ -12,11 +12,11 @@
 #include "DataPump.h"
 #include <modbus.h>
 
-#define HOLDING_REGS_ADDR 0x100
-#define HOLDING_REGS_NB 0x300
+#define HOLDING_REGS_ADDR 0x0
+#define HOLDING_REGS_NB 0x900
 
-#define INPUT_REGS_ADDR 0x100
-#define INPUT_REGS_NB 0x300
+#define INPUT_REGS_ADDR 0x0
+#define INPUT_REGS_NB 0x900
 
 
 class CModbusLoop: public CThread, public IOnDataUpdateListener {
