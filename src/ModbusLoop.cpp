@@ -265,6 +265,7 @@ void* CModbusLoop::Run() {
 
 			if (rc == -1) {
 				/* Connection closed by the client or error */
+				modbus_close(m_ctx);
 				break;
 			}
 
@@ -377,6 +378,7 @@ void* CModbusLoop::Run() {
 			}
 
 			if (rc == -1) {
+				modbus_close(m_ctx);
 				break;
 			}
 		}
