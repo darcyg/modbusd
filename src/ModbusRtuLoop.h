@@ -21,7 +21,7 @@ protected:
 protected:
     virtual int AcceptModbusConnection();
 public:
-	CModbusRtuLoop(data_parameter_t* params, int nbParams, setting_t* settings, int nbSettings, std::string ritexPath,
+	CModbusRtuLoop(data_parameter_t* params, int nbParams, setting_m_t* settings, int nbSettings, std::string ritexPath,
 			std::string comPort, int speed, int bpb, char parity, int stopBits, int slaveId);
 	virtual ~CModbusRtuLoop();
 	virtual bool Create();

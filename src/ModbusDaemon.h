@@ -27,6 +27,7 @@ protected:
 	std::string m_sParamDbName;
 	std::string m_sEventDbName;
 	std::string m_sRitexPath;
+	std::string m_sRitexPathEngine;
 	int m_tcpPort;
 	std::string m_tcpAddr;
 	int m_modbusMode;

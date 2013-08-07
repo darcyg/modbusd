@@ -8,7 +8,7 @@
 #include "ModbusRtuLoop.h"
 #include "Log.h"
 
-CModbusRtuLoop::CModbusRtuLoop(data_parameter_t* params, int nbParams, setting_t* settings, int nbSettings, std::string ritexPath,
+CModbusRtuLoop::CModbusRtuLoop(data_parameter_t* params, int nbParams, setting_m_t* settings, int nbSettings, std::string ritexPath,
 		std::string comPort, int speed, int bpb, char parity, int stopBits, int slaveId)
 	: CModbusLoop(params, nbParams, settings, nbSettings, ritexPath), m_comPort(comPort), m_speed(speed), m_bpb(bpb),
 	  m_parity(parity), m_stopBits(stopBits), m_slaveId(slaveId)

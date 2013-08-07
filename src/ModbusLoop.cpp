@@ -24,7 +24,7 @@
 #define MB_FUNCTION_WRITE_HOLDING_MULTIPLE 0x10
 
 CModbusLoop::CModbusLoop(data_parameter_t* params, int nbParams,
-		setting_t* settings, int nbSettings, std::string ritexPath) :
+		setting_m_t* settings, int nbSettings, std::string ritexPath) :
 		m_ctx(NULL), m_mapping1(NULL), m_mapping2(NULL), m_mapping(NULL), m_headerLength(
 				0), m_query(NULL), m_params(params), m_settings(settings), m_nbParams(
 				nbParams), m_nbSettings(nbSettings), m_sRitexPath(ritexPath) {
@@ -150,6 +150,85 @@ bool CModbusLoop::isValidInputReg(uint16_t addr, int count) {
 #endif
 }
 
+bool CModbusLoop::ChangeEngineStatus(bool isOn) {
+	pid_t childPid;
+
+	//prepare command line
+	int maxLen = m_sRitexPathEngine.length() + 12; //FIXME
+	char* tmpBuf = new char[maxLen];
+
+	if (tmpBuf == NULL)
+		return false;
+
+	snprintf(tmpBuf, maxLen, m_sRitexPathEngine.c_str(), isOn ? 1 : 2);
+
+	printf("Command line for exec(): [%s]\n", tmpBuf);
+
+	std::vector<std::string> parts = split(std::string(tmpBuf), ' ');
+
+	delete[] tmpBuf;
+
+	int argc = parts.size();
+
+	if (argc == 0) {
+		return false;
+	}
+	//now create array of parameters
+	char** argv = new char*[argc + 1];
+	if (argv == NULL) {
+		return false;
+	}
+
+	//put NULL in the last element
+	argv[argc] = NULL;
+
+	for (int i = 0; i < argc; i++) {
+		int argLen = parts[i].length() + 1;
+		argv[i] = new char[argLen];
+		strncpy(argv[i], parts[i].c_str(), argLen);
+	}
+
+	int pipefd[2];
+	pipe(pipefd);
+
+	childPid = ::fork();
+	if (childPid == 0) {
+	    close(pipefd[0]);    // close reading end in the child
+
+	    dup2(pipefd[1], 1);  // send stdout to the pipe
+	    dup2(pipefd[1], 2);  // send stderr to the pipe
+
+	    //close(pipefd[1]);    // this descriptor is no longer needed
+
+		execvp(parts[0].c_str(), argv);
+		exit(0);
+	} else {
+		int b = 0, rc = 0;
+	    char buffer[1024];
+	    close(pipefd[1]);  // close the write end of the pipe in the parent
+
+	    do {
+	    	rc = read(pipefd[0], buffer + b, sizeof(buffer) - b);
+	    	b += rc;
+	    } while (rc != 0 || b == 1023);
+	    buffer[b] = '\0';
+	    close(pipefd[0]);  // close the write end of the pipe in the parent
+
+	    printf("[CHILD RETURNED] %s\n", buffer);
+
+		int child_status;
+		waitpid(childPid, &child_status, 0);
+
+		//parse response
+		if(buffer[0] == '8')
+			return true;
+		else
+			return false;
+	}
+	return true;
+}
+
+
 bool CModbusLoop::WriteSettingByAddress(uint16_t addr, uint16_t value) {
 	int id = -1;
 	pid_t childPid;
@@ -160,8 +239,10 @@ bool CModbusLoop::WriteSettingByAddress(uint16_t addr, uint16_t value) {
 		}
 	}
 
-	if(id == -1)
+	if(id == -1) {
+		Log("-------ERROR: address not found 0x%X", addr);
 		return false;
+	}
 
 	//prepare command line
 	int maxLen = m_sRitexPath.length() + 2 * 12;
@@ -173,6 +254,7 @@ bool CModbusLoop::WriteSettingByAddress(uint16_t addr, uint16_t value) {
 	snprintf(tmpBuf, maxLen, m_sRitexPath.c_str(), id, value);
 
 	printf("Command line for exec(): [%s]\n", tmpBuf);
+	Log("Command line for exec(): [%s]\n", tmpBuf);
 
 	std::vector<std::string> parts = split(std::string(tmpBuf), ' ');
 
@@ -288,13 +370,26 @@ void* CModbusLoop::Run() {
 							MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
 					break;
 				}
-				if(!WriteSettingByAddress(address, getValueF6())) {
-					rc = modbus_reply_exception(m_ctx, m_query,
-							MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE);
+				if(address == 0x201) {
+					bool isOn = getValueF6() == 1 ? true : false;
+					Log("Manipulating engine (LUKOIL ONLY): isOn=%d", isOn);
+					if(!ChangeEngineStatus(isOn)) {
+						rc = modbus_reply_exception(m_ctx, m_query,
+								MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE);
+					} else {
+						pthread_mutex_lock(&m_mutex);
+						rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
+						pthread_mutex_unlock(&m_mutex);
+					}
 				} else {
-					pthread_mutex_lock(&m_mutex);
-					rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
-					pthread_mutex_unlock(&m_mutex);
+					if(!WriteSettingByAddress(address, getValueF6())) {
+						rc = modbus_reply_exception(m_ctx, m_query,
+								MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE);
+					} else {
+						pthread_mutex_lock(&m_mutex);
+						rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
+						pthread_mutex_unlock(&m_mutex);
+					}
 				}
 				break;
 
@@ -389,7 +484,7 @@ void* CModbusLoop::Run() {
 }
 
 void CModbusLoop::OnDataUpdated(const data_parameter_t* params, int nbParams,
-		const setting_t* settings, int nbSettings) {
+		const setting_m_t* settings, int nbSettings) {
 	Log("OnDataUpdated(): nbParams=%d nbSettings=%d", nbParams, nbSettings);
 
 	modbus_mapping_t * pm = m_mapping == m_mapping1 ? m_mapping2 : m_mapping1;

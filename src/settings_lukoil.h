@@ -1,6 +1,6 @@
 #ifndef _SETTINGS_LUKOIL_H_
 #define _SETTINGS_LUKOIL_H_
-static setting_t lukoil_Settings[] = {
+static setting_m_t lukoil_Settings[] = {
 	{31, "Частота вращения", 0.0, 0x039B, 1},
 	{33, "Защита по перегрузу", 0.0, 0x311, 1},
 	{34, "Время блокировки защиты по перегрузке", 0.0, 0x312, 1},
@@ -28,5 +28,5 @@ static setting_t lukoil_Settings[] = {
 	{64, "Давление жидкости на приеме насоса", 0.0, 0x35A, 1},
 	{67, "Направление вращения", 0.0, 0x3A0, 1},
 };
-#define NUMBER_OF_SETTINGS_LUKOIL (sizeof(lukoil_Settings) / sizeof(setting_t))
+#define NUMBER_OF_SETTINGS_LUKOIL (sizeof(lukoil_Settings) / sizeof(setting_m_t))
 #endif

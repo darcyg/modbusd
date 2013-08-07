@@ -18,4 +18,6 @@ MODBUS_Map = LUKOIL
 
 #command to set a setting
 Ritex_Path = /mnt/adapters/Ritex -cmd 9 24 %d~%d SRV 37 -sp a -a comdevice /dev/ttySC1 -a baudrate 9600
+Ritex_Path_Engine = /mnt/adapters/Ritex -cmd 9 2 %d SRV 37 -sp a -a comdevice /dev/ttySC1 -a baudrate 9600
+
 

@@ -13,6 +13,28 @@
 #include <string>
 #include <list>
 #include <stdint.h>
+#include <queue>
+#include <string>
+#include <sqlite3.h>
+#include <syslog.h>
+#include <assert.h>
+#include <errno.h>
+#include <iostream>
+#include <cmath>
+#include <cassert>
+#include <cstdio>
+#include <cstdlib>
+
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/un.h>
+#include <time.h>
+#include <unistd.h>
+#include "gateway/system.hpp"
+#include "gateway/command.hpp"
+#include "gateway/system.hpp"
+
+
 
 typedef struct {
 	int m_paramId;
@@ -27,7 +49,7 @@ typedef struct {
 	double m_value;
 	uint16_t m_startReg;
 	uint16_t m_nbRegs;
-} setting_t;
+} setting_m_t;
 
 
 class IOnDataUpdateListener {
@@ -36,10 +58,13 @@ public:
 	 * Called when either parameters or settings are updated. if no update is avaialbel
 	 * nbParams or nbSettngs == 0. Never called with both set to 0
 	 */
-	virtual void OnDataUpdated(const data_parameter_t* params, int nbParams, const setting_t* settings, int nbSettings) = 0;
+	virtual void OnDataUpdated(const data_parameter_t* params, int nbParams, const setting_m_t* settings, int nbSettings) = 0;
 protected:
 	virtual ~IOnDataUpdateListener() {}
 };
+
+using namespace stek::oasis::ic::dbgateway;
+
 
 class CDataPump: public CThread {
 
@@ -53,9 +78,19 @@ protected:
 	std::list<IOnDataUpdateListener*> m_listeners;
 
 	data_parameter_t* m_params;
-	setting_t* m_settings;
+	setting_m_t* m_settings;
 	int m_nbParams;
 	int m_nbSettings;
+	//int sock; //connection to dbgateway
+	stek::oasis::ic::dbgateway::file_t* socket;
+	//params
+	int* availchannels;
+	int* attachedparams;
+	int numofrows; 
+	//events
+	string_t attachedsettings[256];
+	int numofrowsevnt;
+
 protected:
 	typedef std::list<IOnDataUpdateListener*>::iterator listeners_iterrator;
 
@@ -64,8 +99,10 @@ protected:
 	void NotifyDataUpdated(bool isParam, bool isSettings);
 	bool CheckParamsUpdated();
 	bool CheckSettingsUpdated();
+	bool CheckParamsUpdatedgateway();
+	bool CheckSettingsUpdatedgateway();
 public:
-	CDataPump(data_parameter_t* params, int nbParams, setting_t* settings, int nbSettings);
+	CDataPump(data_parameter_t* params, int nbParams, setting_m_t* settings, int nbSettings);
 	virtual ~CDataPump();
 	virtual void* Run();
 	virtual bool Create(std::string paramDbName, std::string eventDbName);

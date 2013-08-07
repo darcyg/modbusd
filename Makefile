@@ -1,7 +1,12 @@
 
 CC_PATH=$(HOME)/termo/gcc-4.1.2-glibc-2.5-nptl-3/arm-none-linux-gnueabi/bin
 
+#CC=arm-linux-gnueabi-g++
+#AS=arm-linux-gnueabi-as
+#LD=arm-linux-gnueabi-ld
+#STRIP=arm-linux-gnueabi-strip
 CC=$(CC_PATH)/arm-none-linux-gnueabi-g++
+AS=$(CC_PATH)/arm-none-linux-gnueabi-as
 STRIP=$(CC_PATH)/arm-none-linux-gnueabi-strip
 
 VERSION=`git describe`
@@ -18,27 +23,38 @@ DEFINES=-D_DAEMON_VERSION_=\"$(VERSION)\"
 #CC_FLAGS = -O0 -g3 -Wall $(INC_PATH) $(DEFINES)
 
 #for Release
-CC_FLAGS = -O3 -Wall $(INC_PATH) $(DEFINES)
+CC_FLAGS = -O3 -g3 -Wall -rdynamic -fno-omit-frame-pointer -mapcs-frame $(INC_PATH) $(DEFINES)
 
-LD_FLAGS = -lpthread -lsqlite3 -lmodbus $(LIB_PATH) 
+LD_FLAGS =  -fno-omit-frame-pointer -mapcs-frame -O3 -g3 -rdynamic -marm -pthread -lsqlite3 -lmodbus -lrt -ldl $(LIB_PATH)  
 
-CPP_FILES := $(wildcard src/*.cpp)
+CPP_FILES := $(wildcard src/gateway/*.cpp src/*.cpp)
+AS_FILES := $(wildcard src/*.s)
+
+
 OBJ_FILES = $(patsubst src/%.cpp,$(OUT)/%.o,$(CPP_FILES))
+AS_OBJ_FILES=$(patsubst src/%.s,$(OUT)/%.o,$(AS_FILES))
+
+OBJ_FILES+=$(AS_OBJ_FILES)
 
 all::dirs $(EXECUTABLE) Makefile
 
 $(EXECUTABLE): $(OBJ_FILES) 
 	@echo Linking $@ version $(VERSION)
-	@$(CC) $(LD_FLAGS) -o $@ $^
+	$(CC) -o $@ $^ $(LD_FLAGS)
+	cp $@ $@.unstripped
 	@$(STRIP) $@
 
 $(OUT)/%.o: src/%.cpp
 	@echo Compiling $^
 	@$(CC) $(CC_FLAGS) -c -o $@ $^
 
+$(OUT)/%.o: src/%.s
+	@echo Assembling $^
+	@$(AS) $(AS_FLAGS) -o $@ $^
+
 .PHONY: dirs
 dirs:
-	mkdir -p $(OUT)
+	mkdir -p $(OUT)/gateway
 clean::
 	rm -rf $(OUT)/*
 	rm -rf $(EXECUTABLE)

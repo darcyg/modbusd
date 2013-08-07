@@ -13,6 +13,7 @@
 void LogInit(std::string filename);
 int GetLogFd();
 void Log(std::string format, ...);
+extern void LogFatal(std::string format, ...);
 void SetLogContext(EExecutionContext context);
 void LogRedirect(FILE **pfp);
 

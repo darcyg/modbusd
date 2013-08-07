@@ -69,7 +69,6 @@ EExecutionContext CDaemonProcess::becomeDaemon()
 	default:
 		::SetLogContext(CONTEXT_PARENT);
 		return CONTEXT_PARENT;
-		break;
 	}
 
 	/* Become leader of new session */
@@ -185,6 +184,8 @@ CDaemonProcess::EError CDaemonProcess::start() {
 		}
 	} else {
 		Log("Daemon is already running");
+//FIXME: for some reason ::connect() hangs forever. comment out since it is not used in the daemon
+#if 0
 		// couldn't create , try connect
 		if(m_pConnection->connect()) {
 			//DAEMON IS RUNNING
@@ -193,6 +194,7 @@ CDaemonProcess::EError CDaemonProcess::start() {
 			Log("FATAL: Couldn't neither create daemon or connect to one");
 			return ERROR_FATAL;
 		}
+#endif
 	}
 	return ERROR_NO_ERROR;
 }

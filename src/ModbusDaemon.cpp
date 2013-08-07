@@ -36,6 +36,7 @@ CModbusDaemon::CModbusDaemon(std::string processName, int argc, char* argv[])
 	m_configOptions["MODBUS_Rtu_SlaveID"] = "";
 	m_configOptions["MODBUS_Map"] = "LUKOIL";
 	m_configOptions["Ritex_Path"] = "";
+	m_configOptions["Ritex_Path_Engine"] = "";
 }
 
 CModbusDaemon::~CModbusDaemon() {
@@ -103,11 +104,20 @@ bool CModbusDaemon::setupEnvironment()
 		return false;
 	}
 
+	m_sRitexPathEngine = m_configOptions.find(std::string("Ritex_Path_Engine"))->second;
+
+	if(m_sRitexPathEngine.empty()) {
+		Log("[config]: Ritex_Path_Engine option is missing");
+		return false;
+	}
+
+
+
 	data_parameter_t* parameters = NULL;
 	int nbParams = 0;
 
 	int nbSettings = 0;
-	setting_t* settings = NULL;
+	setting_m_t* settings = NULL;
 
 	std::string mapping = m_configOptions.find(std::string("MODBUS_Map"))->second;
 

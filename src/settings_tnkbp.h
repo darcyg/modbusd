@@ -1,6 +1,6 @@
 #ifndef _SETTINGS_TNKBP_H_
 #define _SETTINGS_TNKBP_H_
-static setting_t tnkbp_Settings[] = {
+static setting_m_t tnkbp_Settings[] = {
 	{31, "Частота вращения", 0.0, 0x257, 1},
 	{33, "Защита по перегрузу", 0.0, 0x232, 1},
 	{34, "Время блокировки защиты по перегрузке", 0.0, 0x233, 1},
@@ -27,5 +27,5 @@ static setting_t tnkbp_Settings[] = {
 	{63, "Предельная температура ВД ", 0.0, 0x24B, 1},
 	{64, "Давление жидкости на приеме насоса", 0.0, 0x247, 1},
 };
-#define NUMBER_OF_SETTINGS_TNKBP (sizeof(tnkbp_Settings) / sizeof(setting_t))
+#define NUMBER_OF_SETTINGS_TNKBP (sizeof(tnkbp_Settings) / sizeof(setting_m_t))
 #endif

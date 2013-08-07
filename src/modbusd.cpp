@@ -9,9 +9,11 @@
 #include <iostream>
 #include "Log.h"
 #include "ModbusDaemon.h"
+#include "backtrace.h"
 
 int main(int argc, char* argv[]) {
 	int error = -1;
+	install_sigsegv();
 	LogInit("/tmp/modbusd.log");
 	CModbusDaemon* pDaemon = new CModbusDaemon(std::string("modbusd"), argc, argv);
 	if(pDaemon) {

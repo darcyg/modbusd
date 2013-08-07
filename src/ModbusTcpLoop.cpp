@@ -10,7 +10,7 @@
 #include "Log.h"
 #include <unistd.h>
 
-CModbusTcpLoop::CModbusTcpLoop(data_parameter_t* params, int nbParams, setting_t* settings, int nbSettings, std::string ritexPath,
+CModbusTcpLoop::CModbusTcpLoop(data_parameter_t* params, int nbParams, setting_m_t* settings, int nbSettings, std::string ritexPath,
 		std::string addr, int port) :
 		CModbusLoop(params, nbParams, settings, nbSettings, ritexPath), m_port(port), m_addr(addr), m_socket(-1)
 {
