@@ -27,7 +27,7 @@ CModbusLoop::CModbusLoop(data_parameter_t* params, int nbParams,
 		setting_m_t* settings, int nbSettings, std::string ritexPath) :
 		m_ctx(NULL), m_mapping1(NULL), m_mapping2(NULL), m_mapping(NULL), m_headerLength(
 				0), m_query(NULL), m_params(params), m_settings(settings), m_nbParams(
-				nbParams), m_nbSettings(nbSettings), m_sRitexPath(ritexPath) {
+				nbParams), m_nbSettings(nbSettings), m_sRitexPath(ritexPath), m_isDataAvailable(false) {
 
 }
 
@@ -351,125 +351,130 @@ void* CModbusLoop::Run() {
 				break;
 			}
 
-			function = getFunction();
-			address = getStartAddress();
+			if(!m_isDataAvailable) {
+				rc = modbus_reply_exception(m_ctx, m_query,
+												MODBUS_EXCEPTION_SLAVE_OR_SERVER_BUSY);
+			} else {
+				function = getFunction();
+				address = getStartAddress();
 
-			Log("Got query: length=%d FUNCTION: 0x%X", rc, function);
+				Log("Got query: length=%d FUNCTION: 0x%X", rc, function);
 
-			for (int i = 0; i < rc; i++) {
-				printf("0x%x ", m_query[i]);
-			}
-			printf("\n");
-
-			switch (function) {
-			case MB_FUNCTION_WRITE_HOLDING:
-				Log("MB_FUNCTION_WRITE_HOLDING: addr=0x%X value=0x%X", address,
-						getValueF6());
-				if (!isValidHoldingReg(address, 1)) {
-					rc = modbus_reply_exception(m_ctx, m_query,
-							MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
-					break;
+				for (int i = 0; i < rc; i++) {
+					printf("0x%x ", m_query[i]);
 				}
-				if(address == 0x201) {
-					bool isOn = getValueF6() == 1 ? true : false;
-					Log("Manipulating engine (LUKOIL ONLY): isOn=%d", isOn);
-					if(!ChangeEngineStatus(isOn)) {
-						rc = modbus_reply_exception(m_ctx, m_query,
-								MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE);
-					} else {
-						pthread_mutex_lock(&m_mutex);
-						rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
-						pthread_mutex_unlock(&m_mutex);
-					}
-				} else {
-					if(!WriteSettingByAddress(address, getValueF6())) {
-						rc = modbus_reply_exception(m_ctx, m_query,
-								MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE);
-					} else {
-						pthread_mutex_lock(&m_mutex);
-						rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
-						pthread_mutex_unlock(&m_mutex);
-					}
-				}
-				break;
+				printf("\n");
 
-			case MB_FUNCTION_WRITE_HOLDING_MULTIPLE:
-				{
-					bool isException = false;
-					Log(
-							"MB_FUNCTION_WRITE_HOLDING_MULTIPLE: addr=0x%X n_reg=%d n_byte=%d",
-							address, getRegisterCountF10(), getByteCountF10());
-
-					if (!isValidHoldingReg(address, getRegisterCountF10())) {
+				switch (function) {
+				case MB_FUNCTION_WRITE_HOLDING:
+					Log("MB_FUNCTION_WRITE_HOLDING: addr=0x%X value=0x%X", address,
+							getValueF6());
+					if (!isValidHoldingReg(address, 1)) {
 						rc = modbus_reply_exception(m_ctx, m_query,
 								MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
-						Log("------------0");
 						break;
 					}
-
-					Log("------------1");
-					for(int i = 0; i < getRegisterCountF10(); i++) {
-						Log("------------2");
-
-						uint16_t value = getValuesPtrF10()[i];
-						Log("------------3");
-
-						if(!WriteSettingByAddress(address + i, value)) {
-							Log("------------4");
+					if(address == 0x201) {
+						bool isOn = getValueF6() == 0xFF00 ? true : false;
+						Log("Manipulating engine (LUKOIL ONLY): isOn=%d", isOn);
+						if(!ChangeEngineStatus(isOn)) {
 							rc = modbus_reply_exception(m_ctx, m_query,
 									MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE);
-							isException = true;
-							break;
+						} else {
+							pthread_mutex_lock(&m_mutex);
+							rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
+							pthread_mutex_unlock(&m_mutex);
+						}
+					} else {
+						if(!WriteSettingByAddress(address, getValueF6())) {
+							rc = modbus_reply_exception(m_ctx, m_query,
+									MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE);
+						} else {
+							pthread_mutex_lock(&m_mutex);
+							rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
+							pthread_mutex_unlock(&m_mutex);
 						}
 					}
-					Log("------------5");
+					break;
 
-					if(!isException) {
-						Log("------------6");
+				case MB_FUNCTION_WRITE_HOLDING_MULTIPLE:
+					{
+						bool isException = false;
+						Log(
+								"MB_FUNCTION_WRITE_HOLDING_MULTIPLE: addr=0x%X n_reg=%d n_byte=%d",
+								address, getRegisterCountF10(), getByteCountF10());
 
+						if (!isValidHoldingReg(address, getRegisterCountF10())) {
+							rc = modbus_reply_exception(m_ctx, m_query,
+									MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+							Log("------------0");
+							break;
+						}
+
+						Log("------------1");
+						for(int i = 0; i < getRegisterCountF10(); i++) {
+							Log("------------2");
+
+							uint16_t value = getValuesPtrF10()[i];
+							Log("------------3");
+
+							if(!WriteSettingByAddress(address + i, value)) {
+								Log("------------4");
+								rc = modbus_reply_exception(m_ctx, m_query,
+										MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE);
+								isException = true;
+								break;
+							}
+						}
+						Log("------------5");
+
+						if(!isException) {
+							Log("------------6");
+
+							pthread_mutex_lock(&m_mutex);
+							rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
+							pthread_mutex_unlock(&m_mutex);
+						}
+					}
+					break;
+
+					// F3 read multiple regs. settings
+				case MB_FUNCTION_READ_HOLDING:
+					Log("MB_FUNCTION_READ_HOLDING: addr=0x%X count=%d", address,
+							getRegisterCountF3());
+					if (!isValidHoldingReg(address, getRegisterCountF3())) {
+						rc = modbus_reply_exception(m_ctx, m_query,
+								MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+						break;
+					} else {
 						pthread_mutex_lock(&m_mutex);
 						rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
 						pthread_mutex_unlock(&m_mutex);
 					}
-				}
-				break;
-
-				// F3 read multiple regs. settings
-			case MB_FUNCTION_READ_HOLDING:
-				Log("MB_FUNCTION_READ_HOLDING: addr=0x%X count=%d", address,
-						getRegisterCountF3());
-				if (!isValidHoldingReg(address, getRegisterCountF3())) {
-					rc = modbus_reply_exception(m_ctx, m_query,
-							MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
 					break;
-				} else {
-					pthread_mutex_lock(&m_mutex);
-					rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
-					pthread_mutex_unlock(&m_mutex);
-				}
-				break;
 
-				// F4 read multiple regs. params
-			case MB_FUNCTION_READ_INPUT:
-				Log("MB_FUNCTION_READ_INPUT: addr=0x%X count=%d", address,
-						getRegisterCountF4());
-				if (!isValidInputReg(address, getRegisterCountF4())) {
-					rc = modbus_reply_exception(m_ctx, m_query,
-							MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+					// F4 read multiple regs. params
+				case MB_FUNCTION_READ_INPUT:
+					Log("MB_FUNCTION_READ_INPUT: addr=0x%X count=%d", address,
+							getRegisterCountF4());
+					if (!isValidInputReg(address, getRegisterCountF4())) {
+						rc = modbus_reply_exception(m_ctx, m_query,
+								MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS);
+						break;
+					} else {
+						pthread_mutex_lock(&m_mutex);
+						rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
+						pthread_mutex_unlock(&m_mutex);
+					}
 					break;
-				} else {
-					pthread_mutex_lock(&m_mutex);
-					rc = modbus_reply(m_ctx, m_query, rc, m_mapping);
-					pthread_mutex_unlock(&m_mutex);
-				}
-				break;
 
-			default: {
-				Log("UNSUPPORTED FUNCTION: 0x%X", function);
-				rc = modbus_reply_exception(m_ctx, m_query,
-						MODBUS_EXCEPTION_ILLEGAL_FUNCTION);
-				break;
-			}
+				default: {
+					Log("UNSUPPORTED FUNCTION: 0x%X", function);
+					rc = modbus_reply_exception(m_ctx, m_query,
+							MODBUS_EXCEPTION_ILLEGAL_FUNCTION);
+					break;
+				}
+				}
 			}
 
 			if (rc == -1) {
@@ -501,4 +506,12 @@ void CModbusLoop::OnDataUpdated(const data_parameter_t* params, int nbParams,
 	m_mapping = pm;
 	pthread_mutex_unlock(&m_mutex);
 }
+
+void CModbusLoop::OnDataAvailable(bool isAvailable) {
+	Log("*************** OnDataAvailable(): isAvailable=%d", isAvailable);
+	pthread_mutex_lock(&m_mutex);
+	m_isDataAvailable = isAvailable;
+	pthread_mutex_unlock(&m_mutex);
+}
+
 

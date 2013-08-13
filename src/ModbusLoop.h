@@ -38,6 +38,7 @@ protected:
 	std::string m_sRitexPathEngine;
 
 	pthread_mutex_t m_mutex;
+	bool m_isDataAvailable;
 
 	uint8_t getFunction();
 	uint16_t getStartAddress();
@@ -60,6 +61,7 @@ public:
 
 public:
 	virtual void OnDataUpdated(const data_parameter_t* params, int nbParams, const setting_m_t* settings, int nbSettings);
+	virtual void OnDataAvailable(bool isAvailable);
 };
 
 #endif /* CMODBUSLOOP_H_ */

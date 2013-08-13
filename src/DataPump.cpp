@@ -296,6 +296,18 @@ bool CDataPump::CheckSettingsUpdatedgateway() {
 	return valuesChanged;
 }
 
+bool CDataPump::CheckDataValid() {
+	int sum = 0;
+	for(int i = 0; i < m_nbSettings; i++) {
+		sum += m_settings[i].m_value;
+	}
+
+	for(int j = 0; j < m_nbParams; j++) {
+		sum += m_params[j].m_value;
+	}
+	return sum != 0;
+}
+
 
 /*
  * the main loop.
@@ -309,30 +321,27 @@ void* CDataPump::Run()
 
 	bool paramsChanged = false;
 	bool settingsChanged = false;
-	bool firsttime=true;
 
 	while(true) {
 		//TODO: check for bad values in
 
-		if (firsttime)	{
-			paramsChanged = CheckParamsUpdated();
-			settingsChanged = CheckSettingsUpdated();
-			firsttime=false;
-		} else {
-			try {
-				paramsChanged = CheckParamsUpdatedgateway();
-				settingsChanged = CheckSettingsUpdatedgateway();
-			} catch (...) {
-				firsttime=true;
-				Log("Exception getting parameters or settings through dbgateway. Ignoring");
-			}
+		try {
+			paramsChanged = CheckParamsUpdatedgateway();
+			settingsChanged = CheckSettingsUpdatedgateway();
+		} catch (...) {
+			Log("Exception getting parameters or settings through dbgateway.");
+			NotifyDataAvailable(false);
 		}
 
-
-
 		if(paramsChanged || settingsChanged) {
-			Log("Some values changed");
-			NotifyDataUpdated(paramsChanged, settingsChanged);
+			Log("Some values changed. Check if valid");
+			if(CheckDataValid()) {
+				NotifyDataAvailable(true);
+				NotifyDataUpdated(paramsChanged, settingsChanged);
+			} else {
+				Log("ERROR: all 0z got!. Gateway crash????");
+				NotifyDataAvailable(false);
+			}
 		}
 
 		timeout.tv_sec = 10;
@@ -362,5 +371,12 @@ void CDataPump::NotifyDataUpdated(bool isParam, bool isSettings)
 		(*it)->OnDataUpdated(m_params, isParam ? m_nbParams : 0, m_settings, isSettings ? m_nbSettings : 0);
 	}
 }
+
+void CDataPump::NotifyDataAvailable(bool isAvailable) {
+	for(listeners_iterrator it = m_listeners.begin(); it != m_listeners.end(); it++) {
+		(*it)->OnDataAvailable(isAvailable);
+	}
+}
+
 
 

@@ -59,6 +59,7 @@ public:
 	 * nbParams or nbSettngs == 0. Never called with both set to 0
 	 */
 	virtual void OnDataUpdated(const data_parameter_t* params, int nbParams, const setting_m_t* settings, int nbSettings) = 0;
+	virtual void OnDataAvailable(bool isAvailable) = 0;
 protected:
 	virtual ~IOnDataUpdateListener() {}
 };
@@ -97,10 +98,13 @@ protected:
 protected:
 	void CloseDb();
 	void NotifyDataUpdated(bool isParam, bool isSettings);
+	void NotifyDataAvailable(bool isAvailable);
 	bool CheckParamsUpdated();
 	bool CheckSettingsUpdated();
 	bool CheckParamsUpdatedgateway();
 	bool CheckSettingsUpdatedgateway();
+
+	bool CheckDataValid();
 public:
 	CDataPump(data_parameter_t* params, int nbParams, setting_m_t* settings, int nbSettings);
 	virtual ~CDataPump();
