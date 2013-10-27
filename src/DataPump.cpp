@@ -16,12 +16,26 @@
 #include "gateway/string.hpp"
 #include "gateway/logger.hpp"
 
+// fromr 1.1
+#define VD_ON_START 0x0
+#define VD_ON_RESET 0x16
+#define VD_ON_TUNE  0x1
+
+// from appendix A
+#define VD_ROTATE_LEFT  0x0
+#define VD_ROTATE_RIGHT 0x4
+
+// from appendix D
+#define VD_ON_MASK 0x1
+#define VD_MODE_AUTO_MASK 0x2
+#define VD_ROTATION_RIGHT_MASK 0x4
 
 //using namespace stek::oasis::ic::dbgateway;
 
 CDataPump::CDataPump(data_parameter_t* params, int nbParams, setting_m_t* settings, int nbSettings)
 	: m_pParamDb(NULL), m_pEventDb(NULL), m_pParamStm(NULL), m_pEventStm(NULL),
-	  m_params(params), m_settings(settings), m_nbParams(nbParams), m_nbSettings(nbSettings)
+	  m_params(params), m_settings(settings), m_nbParams(nbParams), m_nbSettings(nbSettings),
+	  m_reg_stationState(-1), m_reg_errorCode(-1)
 {
 	m_sParamSqlQuery = std::string("select paramid,value,channelid from (select  *  from tblparamdata as filter inner join (" \
 					"select paramId, max(registerdate) as registerdate from tblparamdata group by paramId)" \
@@ -31,6 +45,22 @@ CDataPump::CDataPump(data_parameter_t* params, int nbParams, setting_m_t* settin
 					"select  *  from tbleventbus as filter inner join" \
 					" (select Argument3, max(registerdate) as registerdate from tbleventbus where TypeId = \"11\" group by Argument3 )	as filter1" \
 					" on filter.Argument3 = filter1.Argument3 and filter.registerdate = filter1.registerdate)");
+
+	for( int i = 0; i < nbParams; i++) {
+		if(params[i].m_paramId == PARAM_STATION_STATE) {
+			m_reg_stationState = i;
+		}
+		if(params[i].m_paramId == PARAM_ERROR_CODE) {
+			m_reg_errorCode = i;
+		}
+		//we may need to terminate loop when both params found, but too few of them
+		if((m_reg_errorCode != -1) && (m_reg_stationState != -1)) {
+			break;
+		}
+
+		Log("m_reg_errorCode=0x%x m_reg_stationState=0x%x\n", m_reg_errorCode, m_reg_stationState);
+	}
+
 	stek::oasis::ic::dbgateway::object_t obj("device");
 	socket = new file_t(obj);
 }
@@ -208,6 +238,65 @@ bool CDataPump::CheckParamsUpdatedgateway() {
 						valuesChanged = true;
 					}
 					break;
+				}
+			}
+
+			// need to setup special mapping for 2 parameters
+			// 1050100090 -
+			// 1050100100
+
+			if(valuesChanged) {
+				// we have both params defined
+				if((m_reg_errorCode != -1) && (m_reg_stationState !=-1)) {
+					int unmappedState = m_params[m_reg_stationState].m_value;
+					int unmappedError = m_params[m_reg_errorCode].m_value;
+					bool isAuto = (unmappedState & VD_MODE_AUTO_MASK) != 0;
+					bool isOn = (unmappedState & VD_ON_MASK) != 0;
+					Log("unmappedState=0x%x unmappedError=%d isAuto=%d isOn=%d\n", unmappedState, unmappedError, isAuto, isOn);
+
+					if(isOn) {
+						if (isAuto) {
+							m_params[m_reg_stationState].m_value = 0x00;
+						} else {
+							LogFatal("ERROR: unsupported combination: isOn=true isAuto=false\n");
+						}
+					} else {
+						if(isAuto) {
+							switch(unmappedError) {
+							case 56:
+							case 57:
+								m_params[m_reg_stationState].m_value = 0x22;
+								break;
+							case 0: // no error. working on program
+								m_params[m_reg_stationState].m_value = 0x21;
+								break;
+							default:
+								LogFatal("Unsupported error code for: isAuto=true isOn=false\n");
+								break;
+							}
+						} else {
+							switch(unmappedError) {
+							case 0:
+								m_params[m_reg_stationState].m_value = 0x20;
+								break;
+							case 50:
+							case 51:
+							case 52:
+								m_params[m_reg_stationState].m_value = 0x28;
+								break;
+							case 56:
+							case 57:
+								m_params[m_reg_stationState].m_value = 0x25;
+								break;
+							default:
+								m_params[m_reg_stationState].m_value = 0x24;
+								break;
+							}
+						}
+					}
+
+					Log("MAPPED STATE: 0x%x\n", m_params[m_reg_stationState].m_value);
+
 				}
 			}
 	}

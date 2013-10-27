@@ -34,6 +34,8 @@
 #include "gateway/command.hpp"
 #include "gateway/system.hpp"
 
+#define PARAM_STATION_STATE 1050100090
+#define PARAM_ERROR_CODE    1050100100
 
 
 typedef struct {
@@ -91,6 +93,11 @@ protected:
 	//events
 	string_t attachedsettings[256];
 	int numofrowsevnt;
+
+	// cache register addresses for params 1050100090 -- "код состояния"
+	// and 1050100100 -- "код неисправности"
+	int m_reg_stationState;
+	int m_reg_errorCode;
 
 protected:
 	typedef std::list<IOnDataUpdateListener*>::iterator listeners_iterrator;
