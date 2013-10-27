@@ -112,6 +112,7 @@ protected:
 	bool CheckSettingsUpdatedgateway();
 
 	bool CheckDataValid();
+	void RemapStateAndError();
 public:
 	CDataPump(data_parameter_t* params, int nbParams, setting_m_t* settings, int nbSettings);
 	virtual ~CDataPump();

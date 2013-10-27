@@ -187,6 +187,63 @@ bool CDataPump::CheckParamsUpdated() {
 	return valuesChanged;
 }
 
+void CDataPump::RemapStateAndError() {
+	// need to setup special mapping for 2 parameters
+	// 1050100090 -
+	// 1050100100
+
+	// we have both indexes defined
+	if((m_reg_errorCode != -1) && (m_reg_stationState !=-1)) {
+		int unmappedState = m_params[m_reg_stationState].m_value;
+		int unmappedError = m_params[m_reg_errorCode].m_value;
+		bool isAuto = (unmappedState & VD_MODE_AUTO_MASK) != 0;
+		bool isOn = (unmappedState & VD_ON_MASK) != 0;
+		Log("unmappedState=0x%x unmappedError=%d isAuto=%d isOn=%d\n", unmappedState, unmappedError, isAuto, isOn);
+
+		if(isOn) {
+			if (isAuto) {
+				m_params[m_reg_stationState].m_value = 0x00;
+			} else {
+				LogFatal("ERROR: unsupported combination: isOn=true isAuto=false\n");
+			}
+		} else {
+			if(isAuto) {
+				switch(unmappedError) {
+				case 56:
+				case 57:
+					m_params[m_reg_stationState].m_value = 0x22;
+					break;
+				case 0: // no error. working on program
+					m_params[m_reg_stationState].m_value = 0x21;
+					break;
+				default:
+					LogFatal("Unsupported error code for: isAuto=true isOn=false\n");
+					break;
+				}
+			} else {
+				switch(unmappedError) {
+				case 0:
+					m_params[m_reg_stationState].m_value = 0x20;
+					break;
+				case 50:
+				case 51:
+				case 52:
+					m_params[m_reg_stationState].m_value = 0x28;
+					break;
+				case 56:
+				case 57:
+					m_params[m_reg_stationState].m_value = 0x25;
+					break;
+				default:
+					m_params[m_reg_stationState].m_value = 0x24;
+					break;
+				}
+			}
+		}
+		Log("MAPPED STATE: 0x%x\n", m_params[m_reg_stationState].m_value);
+	}
+}
+
 
 bool CDataPump::CheckParamsUpdatedgateway() {
 //	int rc;
@@ -238,65 +295,6 @@ bool CDataPump::CheckParamsUpdatedgateway() {
 						valuesChanged = true;
 					}
 					break;
-				}
-			}
-
-			// need to setup special mapping for 2 parameters
-			// 1050100090 -
-			// 1050100100
-
-			if(valuesChanged) {
-				// we have both params defined
-				if((m_reg_errorCode != -1) && (m_reg_stationState !=-1)) {
-					int unmappedState = m_params[m_reg_stationState].m_value;
-					int unmappedError = m_params[m_reg_errorCode].m_value;
-					bool isAuto = (unmappedState & VD_MODE_AUTO_MASK) != 0;
-					bool isOn = (unmappedState & VD_ON_MASK) != 0;
-					Log("unmappedState=0x%x unmappedError=%d isAuto=%d isOn=%d\n", unmappedState, unmappedError, isAuto, isOn);
-
-					if(isOn) {
-						if (isAuto) {
-							m_params[m_reg_stationState].m_value = 0x00;
-						} else {
-							LogFatal("ERROR: unsupported combination: isOn=true isAuto=false\n");
-						}
-					} else {
-						if(isAuto) {
-							switch(unmappedError) {
-							case 56:
-							case 57:
-								m_params[m_reg_stationState].m_value = 0x22;
-								break;
-							case 0: // no error. working on program
-								m_params[m_reg_stationState].m_value = 0x21;
-								break;
-							default:
-								LogFatal("Unsupported error code for: isAuto=true isOn=false\n");
-								break;
-							}
-						} else {
-							switch(unmappedError) {
-							case 0:
-								m_params[m_reg_stationState].m_value = 0x20;
-								break;
-							case 50:
-							case 51:
-							case 52:
-								m_params[m_reg_stationState].m_value = 0x28;
-								break;
-							case 56:
-							case 57:
-								m_params[m_reg_stationState].m_value = 0x25;
-								break;
-							default:
-								m_params[m_reg_stationState].m_value = 0x24;
-								break;
-							}
-						}
-					}
-
-					Log("MAPPED STATE: 0x%x\n", m_params[m_reg_stationState].m_value);
-
 				}
 			}
 	}
@@ -425,6 +423,7 @@ void* CDataPump::Run()
 		if(paramsChanged || settingsChanged) {
 			Log("Some values changed. Check if valid");
 			if(CheckDataValid()) {
+				RemapStateAndError();
 				NotifyDataAvailable(true);
 				NotifyDataUpdated(paramsChanged, settingsChanged);
 			} else {
