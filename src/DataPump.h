@@ -39,6 +39,7 @@
 
 
 typedef struct {
+	int m_channelId;
 	int m_paramId;
 	double m_value;
 	uint16_t m_startReg;
@@ -73,11 +74,8 @@ class CDataPump: public CThread {
 
 protected:
 	sqlite3* m_pParamDb;
-	sqlite3* m_pEventDb;
 	sqlite3_stmt* m_pParamStm;
-	sqlite3_stmt* m_pEventStm;
 	std::string m_sParamSqlQuery;
-	std::string m_sEventSqlQuery;
 	std::list<IOnDataUpdateListener*> m_listeners;
 
 	data_parameter_t* m_params;
@@ -86,15 +84,8 @@ protected:
 	int m_nbSettings;
 	//int sock; //connection to dbgateway
 	stek::oasis::ic::dbgateway::file_t* socket;
-	//params
-	int* availchannels;
-	int* attachedparams;
-	int numofrows; 
-	//events
-	string_t attachedsettings[256];
-	int numofrowsevnt;
 
-	// cache register addresses for params 1050100090 -- "код состояния"
+	// cache register INDEXES for params 1050100090 -- "код состояния"
 	// and 1050100100 -- "код неисправности"
 	int m_reg_stationState;
 	int m_reg_errorCode;
@@ -106,7 +97,7 @@ protected:
 	void CloseDb();
 	void NotifyDataUpdated(bool isParam, bool isSettings);
 	void NotifyDataAvailable(bool isAvailable);
-	bool CheckParamsUpdated();
+	bool GetChannelsForParams();
 	bool CheckSettingsUpdated();
 	bool CheckParamsUpdatedgateway();
 	bool CheckSettingsUpdatedgateway();
@@ -117,7 +108,7 @@ public:
 	CDataPump(data_parameter_t* params, int nbParams, setting_m_t* settings, int nbSettings);
 	virtual ~CDataPump();
 	virtual void* Run();
-	virtual bool Create(std::string paramDbName, std::string eventDbName);
+	virtual bool Create(std::string paramDbName);
 	void RegisterDataUpdateListener(IOnDataUpdateListener* pListener);
 	void DeregisterDataUpdateListener(IOnDataUpdateListener* pListener);
 };

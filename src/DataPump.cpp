@@ -33,19 +33,13 @@
 //using namespace stek::oasis::ic::dbgateway;
 
 CDataPump::CDataPump(data_parameter_t* params, int nbParams, setting_m_t* settings, int nbSettings)
-	: m_pParamDb(NULL), m_pEventDb(NULL), m_pParamStm(NULL), m_pEventStm(NULL),
+	: m_pParamDb(NULL), m_pParamStm(NULL),
 	  m_params(params), m_settings(settings), m_nbParams(nbParams), m_nbSettings(nbSettings),
 	  m_reg_stationState(-1), m_reg_errorCode(-1)
 {
-	m_sParamSqlQuery = std::string("select paramid,value,channelid from (select  *  from tblparamdata as filter inner join (" \
-					"select paramId, max(registerdate) as registerdate from tblparamdata group by paramId)" \
-					"as filter1 on filter.ParamId = filter1.paramId and filter.registerdate = filter1.registerdate)");
+	m_sParamSqlQuery = std::string("select ChanelId, ParamId from tblchanelinfo");
 
-	m_sEventSqlQuery = std::string("select Argument3,Argument1 from (" \
-					"select  *  from tbleventbus as filter inner join" \
-					" (select Argument3, max(registerdate) as registerdate from tbleventbus where TypeId = \"11\" group by Argument3 )	as filter1" \
-					" on filter.Argument3 = filter1.Argument3 and filter.registerdate = filter1.registerdate)");
-
+	//FIXME: bad way to find required parameters
 	for( int i = 0; i < nbParams; i++) {
 		if(params[i].m_paramId == PARAM_STATION_STATE) {
 			m_reg_stationState = i;
@@ -57,9 +51,10 @@ CDataPump::CDataPump(data_parameter_t* params, int nbParams, setting_m_t* settin
 		if((m_reg_errorCode != -1) && (m_reg_stationState != -1)) {
 			break;
 		}
-
-		Log("m_reg_errorCode=0x%x m_reg_stationState=0x%x\n", m_reg_errorCode, m_reg_stationState);
 	}
+
+	Log("m_reg_errorCode=%d m_reg_stationState=%d\n", m_reg_errorCode, m_reg_stationState);
+
 
 	stek::oasis::ic::dbgateway::object_t obj("device");
 	socket = new file_t(obj);
@@ -78,14 +73,7 @@ void CDataPump::CloseDb() {
 		sqlite3_close(m_pParamDb);
 		m_pParamDb = NULL;
 	}
-	if(m_pEventStm) {
-		sqlite3_finalize(m_pEventStm);
-		m_pEventStm = NULL;
-	}
-	if(m_pEventDb) {
-		sqlite3_close(m_pEventDb);
-		m_pEventDb = NULL;
-	}
+
 	mark_t eot( "EOT" );
 	Log("[dbgateway] send EOT");
 
@@ -97,7 +85,7 @@ void CDataPump::CloseDb() {
 	}
 }
 
-bool CDataPump::Create(std::string paramDbName, std::string eventDbName)
+bool CDataPump::Create(std::string paramDbName)
 {
 	int rc;
 	//try open DB
@@ -127,53 +115,22 @@ bool CDataPump::Create(std::string paramDbName, std::string eventDbName)
     	Log("Exception connectiong to dbgateway. Ignoring");
     }
 
-	//operate db
-
-	rc = sqlite3_open_v2(eventDbName.c_str(), &m_pEventDb, SQLITE_OPEN_READONLY, NULL);
-
-    if(rc != SQLITE_OK)
-    {
-    	Log("couldn't open DB: %s\n", eventDbName.c_str());
-    	CloseDb();
-    	return false;
-    }
-    rc = sqlite3_prepare_v2(m_pEventDb, m_sEventSqlQuery.c_str(),-1, &m_pEventStm, NULL);
-
-    if(rc != SQLITE_OK)
-    {
-    	Log("couldn't prepare SQL statement for: %s : error %s\n", eventDbName.c_str(), sqlite3_errmsg(m_pEventDb));
-    	CloseDb();
-    	return false;
-    }
-
 	return CThread::Create();
 }
 
-bool CDataPump::CheckParamsUpdated() {
+bool CDataPump::GetChannelsForParams() {
 	int rc;
 	bool valuesChanged = false;
-	numofrows=0;
-	
-	availchannels=(int*)calloc(1024,sizeof(int)); //todo make dynamic
-	attachedparams=(int*)calloc(1024,sizeof(int));
 
 	while ((rc =sqlite3_step(m_pParamStm)) ==  SQLITE_ROW) {
 		
-		int paramId = sqlite3_column_int(m_pParamStm, 0);
-		double value = sqlite3_column_double(m_pParamStm, 1);
-		int channelid = sqlite3_column_int(m_pParamStm, 2);
-		availchannels[numofrows]=channelid;
-		attachedparams[numofrows]=paramId;
-		numofrows = numofrows+1;
-		Log( "Found parameter: P:%d V:%g ch:%d", paramId, value,channelid);
-
+		int channelid = sqlite3_column_int(m_pParamStm, 0);
+		int paramId = sqlite3_column_int(m_pParamStm, 1);
 
 		for(int i = 0;i < m_nbParams; i++) {
 			if(m_params[i].m_paramId == paramId) {
-				if(m_params[i].m_value != value) {
-					m_params[i].m_value = value;
-					valuesChanged = true;
-				}
+				m_params[i].m_channelId = channelid;
+				Log( "Found parameter: P:%d CH:%d", paramId, channelid);
 				break;
 			}
 		}
@@ -183,7 +140,6 @@ bool CDataPump::CheckParamsUpdated() {
 	}
 	sqlite3_reset(m_pParamStm);
 
-	Log( "number of parameters:%d", numofrows);
 	return valuesChanged;
 }
 
@@ -252,13 +208,18 @@ bool CDataPump::CheckParamsUpdatedgateway() {
 	
 //operate dbgateway service
 
-	Log( "asking gateway for params in cache: %d", numofrows);
-        size_t n = numofrows;
+	Log( "asking gateway for params in cache: %d", m_nbParams);
+        size_t n = m_nbParams;
         for ( size_t i = 0; i < n; i++  ) {
+
+        	// no channel for parameter. skip it
+        	if(m_params[i].m_channelId == 0)
+        		continue;
+
         	//Log("1");
 	        rdp_command_t * cmd = new rdp_command_t();
         	//Log("2");
-            cmd->channels.push_back( channel_t( availchannels[i] ) );
+            cmd->channels.push_back( channel_t( m_params[i].m_channelId) );
         	//Log("3");
 	        osstream_t ostr;
         	//Log("4");
@@ -288,48 +249,11 @@ bool CDataPump::CheckParamsUpdatedgateway() {
 
             Log("[modbusd-dbgateway] got parameter from cache value:%f[%02X %02X %02X %02X]", *valuep ,buffer[40], buffer[41], buffer[42], buffer[43]);
 		
-			for(int k = 0;k < m_nbParams; k++) {
-				if(m_params[k].m_paramId == attachedparams[i]) {
-					if(m_params[k].m_value != *valuep) {
-						m_params[k].m_value = *valuep;
-						valuesChanged = true;
-					}
-					break;
-				}
+			if(m_params[i].m_value != *valuep) {
+				m_params[i].m_value = *valuep;
+				valuesChanged = true;
 			}
 	}
-	return valuesChanged;
-}
-
-
-bool CDataPump::CheckSettingsUpdated() {
-	int rc;
-	bool valuesChanged = false;
-	numofrowsevnt=0;
-
-	while ((rc =sqlite3_step(m_pEventStm)) ==  SQLITE_ROW) {
-		const unsigned char * paramId = sqlite3_column_text(m_pEventStm, 0);
-		double value = sqlite3_column_double(m_pEventStm, 1);
-//		Log( "Found setting: S:%s V:%g", paramId, value);
-		size_t len = strlen((const char*)paramId);
-		attachedsettings[numofrowsevnt].assign((char *)paramId, 0, len);
-		Log( "Found setting string_t: S:%s V:%g Len:%d", attachedsettings[numofrowsevnt].c_str(), value, len);
-		numofrowsevnt ++;
-
-		for(int i = 0;i < m_nbSettings; i++) {
-			if(strcmp(m_settings[i].m_name,(const char*)paramId) == 0) {
-				if(m_settings[i].m_value != value) {
-					m_settings[i].m_value = value;
-					valuesChanged = true;
-				}
-				break;
-			}
-		}
-	}
-	if(rc != SQLITE_DONE) {
-		Log("SQL: %d %s", rc, sqlite3_errmsg(m_pEventDb));
-	}
-	sqlite3_reset(m_pEventStm);
 	return valuesChanged;
 }
 
@@ -337,11 +261,11 @@ bool CDataPump::CheckSettingsUpdatedgateway() {
 //	int rc;
 	bool valuesChanged = false;
 
-	Log( "asking gateway for events in cache: %d", numofrowsevnt);
+	Log( "asking gateway for events in cache: %d", m_nbSettings);
 
-    for ( size_t i = 0; i < numofrowsevnt; i++ ) {
+    for ( size_t i = 0; i < m_nbSettings; i++ ) {
         rds_command_t * cmd = new rds_command_t();
-        cmd->names.push_back( attachedsettings[i] );
+        cmd->names.push_back( string_t(m_settings[i].m_name));
 
         osstream_t ostr;
         cmd->bin_write( ostr );
@@ -369,16 +293,21 @@ bool CDataPump::CheckSettingsUpdatedgateway() {
 
         Log("[modbusd-dbgateway] got Setting from cache arg1_len:%d arg1:%f arg1s:%s.", arg1_len, value, tmpstr);
 
-		for(int k = 0;k < m_nbSettings; k++) {
-			if(attachedsettings[i].compare(m_settings[k].m_name) == 0) {
-		        Log("[modbusd-dbgateway] got Setting from cache %s.", attachedsettings[i].c_str());
-				if(m_settings[k].m_value != value) {
-					m_settings[k].m_value = value;
-					valuesChanged = true;
-				}
-				break;
-			}
+		if(m_settings[i].m_value != value) {
+			m_settings[i].m_value = value;
+			valuesChanged = true;
 		}
+
+//		for(int k = 0;k < m_nbSettings; k++) {
+//			if(attachedsettings[i].compare(m_settings[k].m_name) == 0) {
+//		        Log("[modbusd-dbgateway] got Setting from cache %s.", attachedsettings[i].c_str());
+//				if(m_settings[k].m_value != value) {
+//					m_settings[k].m_value = value;
+//					valuesChanged = true;
+//				}
+//				break;
+//			}
+//		}
     }
 	return valuesChanged;
 }
@@ -408,6 +337,10 @@ void* CDataPump::Run()
 
 	bool paramsChanged = false;
 	bool settingsChanged = false;
+
+	//we need to get channels for parameters before we can get values from gateway
+
+	GetChannelsForParams();
 
 	while(true) {
 		//TODO: check for bad values in

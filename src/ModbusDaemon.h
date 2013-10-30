@@ -25,7 +25,6 @@ protected:
 	CModbusLoop* m_pLoop;
 	CDataPump* m_pPump;
 	std::string m_sParamDbName;
-	std::string m_sEventDbName;
 	std::string m_sRitexPath;
 	std::string m_sRitexPathEngine;
 	int m_tcpPort;

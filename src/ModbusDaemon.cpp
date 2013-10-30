@@ -28,7 +28,6 @@ CModbusDaemon::CModbusDaemon(std::string processName, int argc, char* argv[])
 
 {
 	m_configOptions["ParametersDB"] = "";
-	m_configOptions["EventsDB"] = "";
 	m_configOptions["MODBUS_LocalAddress"] = "";
 	m_configOptions["MODBUS_Rtu_Baudrate"] = "9600";
 	m_configOptions["MODBUS_Rtu_Port"] = "";
@@ -87,13 +86,6 @@ bool CModbusDaemon::setupEnvironment()
 
 	if(m_sParamDbName.empty()) {
 		Log("[config]: ParametersDB option is missing");
-		return false;
-	}
-
-	m_sEventDbName = m_configOptions.find(std::string("EventsDB"))->second;
-
-	if(m_sEventDbName.empty()) {
-		Log("[config]: EventsDB option is missing");
 		return false;
 	}
 
@@ -197,7 +189,6 @@ bool CModbusDaemon::setupEnvironment()
 	Log("---- ENV ----");
 	Log("Modbus backend: %s", m_modbusMode == MODBUS_MODE_TCP ? "TCP" : "RTU");
 	Log("ParamsDB name: %s", m_sParamDbName.c_str());
-	Log("EventsDB name: %s", m_sEventDbName.c_str());
 	Log("MODBUS mapping: %s", mapping.c_str());
 
 	if(m_modbusMode == MODBUS_MODE_TCP) {
@@ -223,7 +214,7 @@ bool CModbusDaemon::setupEnvironment()
 int CModbusDaemon::daemonLoop()
 {
 	Log("daemonLoop() -->>");
-	if(m_pPump->Create(m_sParamDbName, m_sEventDbName)) {
+	if(m_pPump->Create(m_sParamDbName)) {
 		m_pPump->RegisterDataUpdateListener(m_pLoop);
 		if(m_pLoop->Create()) {
 			m_pLoop->Join();
