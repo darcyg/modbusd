@@ -192,7 +192,7 @@ void CDataPump::RemapStateAndError() {
 				}
 			}
 		}
-		Log("MAPPED STATE: 0x%f\n", m_params[m_reg_stationState].m_value);
+		Log("MAPPED STATE: %f\n", m_params[m_reg_stationState].m_value);
 	}
 }
 
@@ -309,18 +309,18 @@ bool CDataPump::CheckSettingsUpdatedgateway() {
 }
 
 bool CDataPump::CheckDataValid() {
-	double sum = 0;
+	double sum1, sum2 = 0;
 	for(int i = 0; i < m_nbSettings; i++) {
-		sum += m_settings[i].m_value;
+		sum2 += m_settings[i].m_value;
 	}
 
 	for(int j = 0; j < m_nbParams; j++) {
-		sum += m_params[j].m_value;
+		sum1 += m_params[j].m_value;
 	}
 
-	Log("#### DATA VALID???: %f\n", sum);
+	Log("#### DATA VALID???: P: %f S: %f\n", sum1, sum2);
 
-	return sum != 0.0;
+	return (sum1 != 0.0) && (sum2 != 0);
 }
 
 /*
