@@ -22,8 +22,8 @@
 class CModbusLoop: public CThread, public IOnDataUpdateListener {
 protected:
     modbus_t* m_ctx;
-    modbus_mapping_t *m_mapping1;
-    modbus_mapping_t *m_mapping2;
+//    modbus_mapping_t *m_mapping1;
+//    modbus_mapping_t *m_mapping2;
     modbus_mapping_t *m_mapping;
 
     int m_headerLength;

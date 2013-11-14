@@ -25,7 +25,7 @@
 
 CModbusLoop::CModbusLoop(data_parameter_t* params, int nbParams,
 		setting_m_t* settings, int nbSettings, std::string ritexPath) :
-		m_ctx(NULL), m_mapping1(NULL), m_mapping2(NULL), m_mapping(NULL), m_headerLength(
+		m_ctx(NULL), m_mapping(NULL), m_headerLength(
 				0), m_query(NULL), m_params(params), m_settings(settings), m_nbParams(
 				nbParams), m_nbSettings(nbSettings), m_sRitexPath(ritexPath), m_isDataAvailable(false) {
 
@@ -40,14 +40,9 @@ CModbusLoop::~CModbusLoop() {
 		m_ctx = NULL;
 	}
 
-	if (m_mapping1) {
-		modbus_mapping_free(m_mapping1);
-		m_mapping1 = NULL;
-	}
-
-	if (m_mapping2) {
-		modbus_mapping_free(m_mapping2);
-		m_mapping2 = NULL;
+	if (m_mapping) {
+		modbus_mapping_free(m_mapping);
+		m_mapping = NULL;
 	}
 
 	if (m_query) {
@@ -61,12 +56,8 @@ CModbusLoop::~CModbusLoop() {
 bool CModbusLoop::Create() {
 
 
-	m_mapping1 = modbus_mapping_new(0, 0, HOLDING_REGS_ADDR + HOLDING_REGS_NB,
+	m_mapping = modbus_mapping_new(0, 0, HOLDING_REGS_ADDR + HOLDING_REGS_NB,
 			INPUT_REGS_ADDR + INPUT_REGS_NB);
-	m_mapping2 = modbus_mapping_new(0, 0, HOLDING_REGS_ADDR + HOLDING_REGS_NB,
-			INPUT_REGS_ADDR + INPUT_REGS_NB);
-
-	m_mapping = m_mapping1;
 
 #if 0
 	for(int i = 0; i < HOLDING_REGS_NB; i++) {
@@ -74,7 +65,7 @@ bool CModbusLoop::Create() {
 	}
 #endif
 
-	if (m_mapping1 == NULL || m_mapping2 == NULL) {
+	if (m_mapping == NULL) {
 		Log("[MODBUS] modbus_mapping_new() failed");
 		return false;
 	}
@@ -492,18 +483,15 @@ void CModbusLoop::OnDataUpdated(const data_parameter_t* params, int nbParams,
 		const setting_m_t* settings, int nbSettings) {
 	Log("OnDataUpdated(): nbParams=%d nbSettings=%d", nbParams, nbSettings);
 
-	modbus_mapping_t * pm = m_mapping == m_mapping1 ? m_mapping2 : m_mapping1;
 
+	pthread_mutex_lock(&m_mutex);
 	for (int i = 0; i < nbParams; i++) {
-		pm->tab_input_registers[params[i].m_startReg] = params[i].m_value;
+		m_mapping->tab_input_registers[params[i].m_startReg] = params[i].m_value;
 	}
 
 	for (int i = 0; i < nbSettings; i++) {
-		pm->tab_registers[settings[i].m_startReg] = settings[i].m_value;
+		m_mapping->tab_registers[settings[i].m_startReg] = settings[i].m_value;
 	}
-
-	pthread_mutex_lock(&m_mutex);
-	m_mapping = pm;
 	pthread_mutex_unlock(&m_mutex);
 }
 

@@ -105,15 +105,7 @@ bool CDataPump::Create(std::string paramDbName)
     	CloseDb();
     	return false;
     }
-	//Operate socket. Open socket to gateway
-    try {
-		socket->socket();
-		Log("CONNECT FROM PID %d", ::getpid());
-		printf("CONNECT FROM PID %d", ::getpid());
-		socket->connect( "/tmp/dbgateway.socket" );
-    } catch (...) {
-    	Log("Exception connectiong to dbgateway. Ignoring");
-    }
+
 
 	return CThread::Create();
 }
@@ -121,6 +113,8 @@ bool CDataPump::Create(std::string paramDbName)
 bool CDataPump::GetChannelsForParams() {
 	int rc;
 	bool valuesChanged = false;
+
+	Log( "CDataPump::GetChannelsForParams() -->>\n");
 
 	while ((rc =sqlite3_step(m_pParamStm)) ==  SQLITE_ROW) {
 		
@@ -140,6 +134,8 @@ bool CDataPump::GetChannelsForParams() {
 	}
 	sqlite3_reset(m_pParamStm);
 
+	Log( "CDataPump::GetChannelsForParams() --<<\n");
+
 	return valuesChanged;
 }
 
@@ -150,8 +146,8 @@ void CDataPump::RemapStateAndError() {
 
 	// we have both indexes defined
 	if((m_reg_errorCode != -1) && (m_reg_stationState !=-1)) {
-		int unmappedState = m_params[m_reg_stationState].m_value;
-		int unmappedError = m_params[m_reg_errorCode].m_value;
+		int unmappedState = int(m_params[m_reg_stationState].m_value);
+		int unmappedError = int(m_params[m_reg_errorCode].m_value);
 		bool isAuto = (unmappedState & VD_MODE_AUTO_MASK) != 0;
 		bool isOn = (unmappedState & VD_ON_MASK) != 0;
 		Log("unmappedState=0x%x unmappedError=%d isAuto=%d isOn=%d\n", unmappedState, unmappedError, isAuto, isOn);
@@ -196,7 +192,7 @@ void CDataPump::RemapStateAndError() {
 				}
 			}
 		}
-		Log("MAPPED STATE: 0x%x\n", m_params[m_reg_stationState].m_value);
+		Log("MAPPED STATE: 0x%f\n", m_params[m_reg_stationState].m_value);
 	}
 }
 
@@ -313,7 +309,7 @@ bool CDataPump::CheckSettingsUpdatedgateway() {
 }
 
 bool CDataPump::CheckDataValid() {
-	int sum = 0;
+	double sum = 0;
 	for(int i = 0; i < m_nbSettings; i++) {
 		sum += m_settings[i].m_value;
 	}
@@ -321,9 +317,11 @@ bool CDataPump::CheckDataValid() {
 	for(int j = 0; j < m_nbParams; j++) {
 		sum += m_params[j].m_value;
 	}
-	return sum != 0;
-}
 
+	Log("#### DATA VALID???: %f\n", sum);
+
+	return sum != 0.0;
+}
 
 /*
  * the main loop.
@@ -344,12 +342,20 @@ void* CDataPump::Run()
 
 	while(true) {
 		//TODO: check for bad values in
+		Log( "#### LOOP -->>\n");
+
+		paramsChanged = settingsChanged = false;
 
 		try {
+			socket->socket();
+			Log("CONNECT FROM PID %d", ::getpid());
+			socket->connect( "/tmp/dbgateway.socket" );
 			paramsChanged = CheckParamsUpdatedgateway();
 			settingsChanged = CheckSettingsUpdatedgateway();
+			socket->close();
 		} catch (...) {
 			Log("Exception getting parameters or settings through dbgateway.");
+			settingsChanged = paramsChanged = false;
 			NotifyDataAvailable(false);
 		}
 
@@ -364,6 +370,7 @@ void* CDataPump::Run()
 				NotifyDataAvailable(false);
 			}
 		}
+		Log( "#### LOOP --<<\n");
 
 		timeout.tv_sec = 10;
 		timeout.tv_nsec = 0;
